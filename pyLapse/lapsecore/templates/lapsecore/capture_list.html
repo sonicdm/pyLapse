@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<p><a class="btn btn-default" href="{% url 'lapsecore_capture_list' %}">Capture Listing</a></p>
+<table class="table">
+<tr>
+<td>ID</td><td>Link</td>
+    <td>name</td>
+    <td>collection_id</td>
+    <td>enabled</td>
+    <td>last_capture</td>
+    <td>slug</td>
+    <td>created</td>
+    <td>last_updated</td>
+</tr>
+{% for object in object_list %}
+<tr>
+    <td>{{object.pk}}</td>
+    <td><a href="{{object.get_absolute_url}}">{{object}}</a></td>
+    <td>{{ object.name }}</td>
+    <td>{{ object.collection_id }}</td>
+    <td>{{ object.enabled }}</td>
+    <td>{{ object.last_capture }}</td>
+    <td>{{ object.slug }}</td>
+    <td>{{ object.created }}</td>
+    <td>{{ object.last_updated }}</td>
+</tr>
+{% endfor %}
+</table><a class="btn btn-primary" href="{% url 'lapsecore_capture_create' %}">Create new Capture</a>
+{% endblock %}

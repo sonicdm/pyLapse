@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<p><a class="btn btn-default" href="{% url 'lapsecore_collectionexport_list' %}">CollectionExport Listing</a></p>
+<table class="table">
+<tr>
+<td>ID</td><td>Link</td>
+    <td>name</td>
+    <td>slug</td>
+    <td>created</td>
+    <td>last_updated</td>
+    <td>export_type</td>
+    <td>export_path</td>
+    <td>export_filename</td>
+</tr>
+{% for object in object_list %}
+<tr>
+    <td>{{object.pk}}</td>
+    <td><a href="{{object.get_absolute_url}}">{{object}}</a></td>
+    <td>{{ object.name }}</td>
+    <td>{{ object.slug }}</td>
+    <td>{{ object.created }}</td>
+    <td>{{ object.last_updated }}</td>
+    <td>{{ object.export_type }}</td>
+    <td>{{ object.export_path }}</td>
+    <td>{{ object.export_filename }}</td>
+</tr>
+{% endfor %}
+</table><a class="btn btn-primary" href="{% url 'lapsecore_collectionexport_create' %}">Create new CollectionExport</a>
+{% endblock %}

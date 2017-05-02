@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<p><a class="btn btn-default" href="{% url 'lapsecore_collectionfile_list' %}">CollectionFile Listing</a></p>
+<table class="table">
+<tr><td>name</td><td>{{ object.name }}</td></tr>
+<tr><td>slug</td><td>{{ object.slug }}</td></tr>
+<tr><td>created</td><td>{{ object.created }}</td></tr>
+<tr><td>last_updated</td><td>{{ object.last_updated }}</td></tr>
+<tr><td>capture_time</td><td>{{ object.capture_time }}</td></tr>
+<tr><td>file_path</td><td>{{ object.file_path }}</td></tr>
+<tr><td>resolution</td><td>{{ object.resolution }}</td></tr>
+<tr><td>exif_data</td><td>{{ object.exif_data }}</td></tr>
+<tr><td>camera_id</td><td>{{ object.camera_id }}</td></tr>
+</table>
+<a class="btn btn-primary" href="{{object.get_update_url}}">Edit CollectionFile</a>
+
+{% endblock %}
