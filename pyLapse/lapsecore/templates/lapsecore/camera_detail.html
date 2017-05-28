@@ -4,12 +4,43 @@
 <p><a class="btn btn-default" href="{% url 'lapsecore_camera_list' %}">Camera Listing</a></p>
 <table class="table">
 <tr><td>name</td><td>{{ object.name }}</td></tr>
-<tr><td>camera_web</td><td>{{ object.camera_web }}</td></tr>
-<tr><td>camera_url</td><td>{{ object.camera_url }}</td></tr>
-<tr><td>camera_preview_url</td><td>{{ object.camera_preview_url }}</td></tr>
-<tr><td>camera_user</td><td>{{ object.camera_user }}</td></tr>
-<tr><td>camera_pass</td><td>{{ object.camera_pass }}</td></tr>
+    <tr>
+        <td>slug</td>
+        <td>{{ object.slug }}</td>
+    </tr>
+    <tr>
+        <td>created</td>
+        <td>{{ object.created }}</td>
+    </tr>
+    <tr>
+        <td>last_updated</td>
+        <td>{{ object.last_updated }}</td>
+    </tr>
+    <tr>
+        <td>web_interface_url</td>
+        <td>{{ object.web_interface_url }}</td>
+    </tr>
+    <tr>
+        <td>image_url</td>
+        <td>{{ object.image_url }}</td>
+    </tr>
+    <tr>
+        <td>preview_url</td>
+        <td>{{ object.preview_url }}</td>
+    </tr>
+    <tr>
+        <td>video_url</td>
+        <td>{{ object.video_url }}</td>
+    </tr>
 <tr><td>enabled</td><td>{{ object.enabled }}</td></tr>
+    <tr>
+        <td>username</td>
+        <td>{{ object.username }}</td>
+    </tr>
+    <tr>
+        <td>password</td>
+        <td>{{ object.password }}</td>
+    </tr>
 </table>
 <a class="btn btn-primary" href="{{object.get_update_url}}">Edit Camera</a>
 

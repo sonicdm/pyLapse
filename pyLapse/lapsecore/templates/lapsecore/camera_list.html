@@ -6,24 +6,32 @@
 <tr>
 <td>ID</td><td>Link</td>
     <td>name</td>
-    <td>camera_web</td>
-    <td>camera_url</td>
-    <td>camera_preview_url</td>
-    <td>camera_user</td>
-    <td>camera_pass</td>
+    <td>slug</td>
+    <td>created</td>
+    <td>last_updated</td>
+    <td>web_interface_url</td>
+    <td>image_url</td>
+    <td>preview_url</td>
+    <td>video_url</td>
     <td>enabled</td>
+    <td>username</td>
+    <td>password</td>
 </tr>
 {% for object in object_list %}
 <tr>
     <td>{{object.pk}}</td>
     <td><a href="{{object.get_absolute_url}}">{{object}}</a></td>
     <td>{{ object.name }}</td>
-    <td>{{ object.camera_web }}</td>
-    <td>{{ object.camera_url }}</td>
-    <td>{{ object.camera_preview_url }}</td>
-    <td>{{ object.camera_user }}</td>
-    <td>{{ object.camera_pass }}</td>
+    <td>{{ object.slug }}</td>
+    <td>{{ object.created }}</td>
+    <td>{{ object.last_updated }}</td>
+    <td>{{ object.web_interface_url }}</td>
+    <td>{{ object.image_url }}</td>
+    <td>{{ object.preview_url }}</td>
+    <td>{{ object.video_url }}</td>
     <td>{{ object.enabled }}</td>
+    <td>{{ object.username }}</td>
+    <td>{{ object.password }}</td>
 </tr>
 {% endfor %}
 </table><a class="btn btn-primary" href="{% url 'lapsecore_camera_create' %}">Create new Camera</a>
