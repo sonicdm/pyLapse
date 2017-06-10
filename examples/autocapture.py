@@ -1,5 +1,6 @@
 """
 An example file that uses apscheduler to automate capturing of images using ImgSeq
+apscheduler: https://pypi.python.org/pypi/APScheduler
 """
 from pyLapse.ImgSeq.cameras import Camera
 from apscheduler.schedulers.blocking import BlockingScheduler
