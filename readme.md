@@ -1,19 +1,19 @@
-# pyLapse:
+# pyLapse
 Automatically save images from ip cameras into collections for export and or render
 detailed scheduling and export options
 
-Interface Outline:
-# MENU
-Home - /
-Captures - /captures
-Cameras - /cameras
-Collections - /collections
-Time Ranges - /timefilters
-Scheduler - /scheduler
-Import/Export ->
-    Import /collections/import
-    Export - /export
-Logs - /logs
+# Planned Web Interface Outline:
+## MENU
+*Home - /
+  *Captures - /captures
+  *Cameras - /cameras
+  *Collections - /collections
+  *Time Ranges - /timefilters
+  *Scheduler - /scheduler
+  *Import/Export ->
+     *Import /collections/import
+     *Export - /export
+ *Logs - /logs
 
 
 # ROOT
