@@ -8,48 +8,46 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth import models as auth_models
 from django.db import models as models
 from django_extensions.db import fields as extension_fields
+from django.utils import timezone
 
 
 class Camera(models.Model):
-
     # Fields
-    name = models.TextField(max_length=200)
-    camera_web = models.TextField('web interface url', blank=True, max_length=200)
-    camera_url = CharField('main image url', max_length=200)
-    camera_preview_url = models.TextField(max_length=200, blank=True)
-    camera_user = models.TextField(max_length=200, blank=True)
-    camera_pass = models.TextField(max_length=200, blank=True)
-    enabled = models.BooleanField(default=True)
-
-
-    class Meta:
-        ordering = ('-pk',)
-
-    def __unicode__(self):
-        return u'%s' % self.name
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_camera_detail', args=(self.pk,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_camera_update', args=(self.pk,))
-
-
-class Capture(models.Model):
-
-    # Fields
-    name = models.TextField(max_length=500)
-    collection_id = IntegerField()
-    enabled = models.TextField(default=True)
-    last_capture = models.DateTimeField(null=True)
+    name = models.CharField(max_length=255)
     slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
     created = models.DateTimeField(auto_now_add=True, editable=False)
     last_updated = models.DateTimeField(auto_now=True, editable=False)
+    web_interface_url = models.CharField(max_length=500, blank=True)
+    image_url = models.CharField(max_length=100, blank=True)
+    preview_url = models.CharField(max_length=100, blank=True)
+    video_url = models.CharField(max_length=100, blank=True)
+    enabled = models.BooleanField(default=True)
+    username = models.CharField(max_length=30, blank=True)
+    password = models.CharField(max_length=30, blank=True)
 
-    # Relationship Fields
-    camera = models.ForeignKey('lapsecore.Camera', limit_choices_to={'enabled': True})
-    collection = models.ManyToManyField('lapsecore.Collection', )
+    class Meta:
+        ordering = ('-created',)
+
+    def __unicode__(self):
+        return u'%d: %s' % (self.pk, self.slug)
+
+    def get_absolute_url(self):
+        return reverse('lapsecore_camera_detail', args=(self.slug,))
+
+    def get_update_url(self):
+        return reverse('lapsecore_camera_update', args=(self.slug,))
+
+
+class Capture(models.Model):
+    # Fields
+    name = models.CharField(max_length=255)
+    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
+    created = models.DateTimeField(auto_now_add=True, editable=False)
+    last_updated = models.DateTimeField(auto_now=True, editable=False)
+    collection_id = models.IntegerField()
+    capture_start = models.DateTimeField()
+    capture_end = models.DateTimeField()
+    capture_prefix = models.CharField(max_length=40, blank=True)
 
     class Meta:
         ordering = ('-created',)
@@ -60,244 +58,114 @@ class Capture(models.Model):
     def get_absolute_url(self):
         return reverse('lapsecore_capture_detail', args=(self.slug,))
 
-
     def get_update_url(self):
         return reverse('lapsecore_capture_update', args=(self.slug,))
 
 
-class CaptureCamera(models.Model):
-
-    # Fields
-    camera_alias = CharField(max_length=200)
-    camera_id = models.IntegerField()
-
-    # Relationship Fields
-    capture = ForeignKey('lapsecore.Capture', on_delete=models.CASCADE)
-
-    class Meta:
-        ordering = ('-pk',)
-
-    def __unicode__(self):
-        return u'%s' % self.pk
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_capturecamera_detail', args=(self.pk,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_capturecamera_update', args=(self.pk,))
-
-
 class CaptureSchedule(models.Model):
-
     # Fields
-    range_start = models.DateTimeField()
-    range_end = models.DateTimeField()
-    capture_interval = models.PositiveSmallIntegerField()
-    interval_unit = models.CharField(max_length=10)
+    name = models.CharField(max_length=255)
+    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
+    created = models.DateTimeField(auto_now_add=True, editable=False)
+    last_updated = models.DateTimeField(auto_now=True, editable=False)
+    start_time = models.IntegerField()
+    end_time = models.IntegerField()
+    capture_interval = models.IntegerField()
+    last_capture = models.DateTimeField(blank=True)
+    capture_days = models.CharField(max_length=15, default='1,1,1,1,1,1,1')
 
     # Relationship Fields
-    capture = ForeignKey('lapsecore.Capture', on_delete=models.CASCADE)
+    capture = models.ForeignKey('lapsecore.Capture', )
 
     class Meta:
-        ordering = ('-pk',)
+        ordering = ('-created',)
 
     def __unicode__(self):
-        return u'%s' % self.pk
+        return u'%s' % self.slug
 
     def get_absolute_url(self):
-        return reverse('lapsecore_captureschedule_detail', args=(self.pk,))
-
+        return reverse('lapsecore_captureschedule_detail', args=(self.slug,))
 
     def get_update_url(self):
-        return reverse('lapsecore_captureschedule_update', args=(self.pk,))
+        return reverse('lapsecore_captureschedule_update', args=(self.slug,))
+
+
+class CaptureCamera(models.Model):
+    # Fields
+    name = models.CharField(max_length=255)
+    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
+    created = models.DateTimeField(auto_now_add=True, editable=False)
+    last_updated = models.DateTimeField(auto_now=True, editable=False)
+    camera_id = models.IntegerField()
+    camera_alias = models.CharField(blank=True, max_length=30)
+
+    # Relationship Fields
+    capture = models.ForeignKey('lapsecore.Capture', )
+
+    class Meta:
+        ordering = ('-created',)
+
+    def __unicode__(self):
+        return u'%s' % self.slug
+
+    def get_absolute_url(self):
+        return reverse('lapsecore_capturecamera_detail', args=(self.slug,))
+
+    def get_update_url(self):
+        return reverse('lapsecore_capturecamera_update', args=(self.slug,))
+
+    def save(self, *args, **kwargs):
+        if not self.camera_alias:
+            self.camera_alias = self.slug
+        super(CaptureCamera, self).save(*args, **kwargs)
 
 
 class Collection(models.Model):
-
     # Fields
     name = models.CharField(max_length=255)
     slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
     created = models.DateTimeField(auto_now_add=True, editable=False)
     last_updated = models.DateTimeField(auto_now=True, editable=False)
-    file_prefix = models.CharField(max_length=50)
-    output_filename_mask = models.TextField(max_length=100)
-    collection_directory = models.TextField(max_length=200)
-
+    collection_dir = models.CharField(max_length=255)
 
     class Meta:
-        ordering = ('-created',)
+        ordering = ('-last_updated',)
 
     def __unicode__(self):
         return u'%s' % self.slug
 
-    def get_absolute_url(self):
-        return reverse('lapsecore_collection_detail', args=(self.slug,))
+
+class CollectionOptions(models.Model):
+    name = models.CharField(max_length=255)
+    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
+    created = models.DateTimeField(auto_now_add=True, editable=False)
+    last_updated = models.DateTimeField(auto_now=True, editable=False)
+    auto_resize = models.BooleanField(default=False)
+    resize_x = models.IntegerField(blank=True)
+    resize_y = models.IntegerField(blank=True)
+    quality = models.IntegerField(blank=True)
+    optimize = models.BooleanField(default=True)
 
 
-    def get_update_url(self):
-        return reverse('lapsecore_collection_update', args=(self.slug,))
-
-
-class CollectionExport(models.Model):
-
+class CaptureImage(models.Model):
     # Fields
     name = models.CharField(max_length=255)
     slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
     created = models.DateTimeField(auto_now_add=True, editable=False)
     last_updated = models.DateTimeField(auto_now=True, editable=False)
-    export_type = models.TextField(max_length=200)
-    export_path = models.TextField(max_length=300)
-    export_filename = models.TextField(max_length=100)
-
-    # Relationship Fields
+    capture = models.ForeignKey('lapsecore.Capture', )
     collection = models.ForeignKey('lapsecore.Collection', )
 
+    collection_dir = models.CharField(max_length=255)
+
     class Meta:
-        ordering = ('-created',)
+        ordering = ('created',)
 
     def __unicode__(self):
         return u'%s' % self.slug
 
     def get_absolute_url(self):
-        return reverse('lapsecore_collectionexport_detail', args=(self.slug,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_collectionexport_update', args=(self.slug,))
-
-
-class ExportPreset(models.Model):
-
-    # Fields
-    name = models.CharField(max_length=255)
-    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
-    created = models.DateTimeField(auto_now_add=True, editable=False)
-    last_updated = models.DateTimeField(auto_now=True, editable=False)
-    output_folder = models.TextField(max_length=150)
-    timefilter_id = models.IntegerField()
-
-
-    class Meta:
-        ordering = ('-created',)
-
-    def __unicode__(self):
-        return u'%s' % self.slug
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_exportpreset_detail', args=(self.slug,))
-
+        return reverse('lapsecore_capture_detail', args=(self.slug,))
 
     def get_update_url(self):
-        return reverse('lapsecore_exportpreset_update', args=(self.slug,))
-
-
-class Scheduler(models.Model):
-
-    # Fields
-    name = models.CharField(max_length=255)
-    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
-    created = models.DateTimeField(auto_now_add=True, editable=False)
-    last_updated = models.DateTimeField(auto_now=True, editable=False)
-
-
-    class Meta:
-        ordering = ('-created',)
-
-    def __unicode__(self):
-        return u'%s' % self.slug
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_scheduler_detail', args=(self.slug,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_scheduler_update', args=(self.slug,))
-
-
-class ExportTimeFilter(models.Model):
-
-    # Fields
-    name = models.CharField(max_length=255)
-    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
-    created = models.DateTimeField(auto_now_add=True, editable=False)
-    last_updated = models.DateTimeField(auto_now=True, editable=False)
-
-
-    class Meta:
-        ordering = ('-created',)
-
-    def __unicode__(self):
-        return u'%s' % self.slug
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_exporttimefilter_detail', args=(self.slug,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_exporttimefilter_update', args=(self.slug,))
-
-
-class CollectionFile(models.Model):
-
-    # Fields
-    name = models.CharField(max_length=255)
-    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
-    created = models.DateTimeField(auto_now_add=True, editable=False)
-    last_updated = models.DateTimeField(auto_now=True, editable=False)
-    capture_time = models.DateTimeField()
-    file_path = models.CharField(max_length=200)
-    resolution = models.CharField(max_length=30)
-    exif_data = models.TextField(max_length=65000)
-    camera_id = models.IntegerField()
-
-    # Relationship Fields
-    collection = models.ForeignKey('lapsecore.Collection', )
-
-    class Meta:
-        ordering = ('-created',)
-
-    def __unicode__(self):
-        return u'%s' % self.slug
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_collectionfile_detail', args=(self.slug,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_collectionfile_update', args=(self.slug,))
-
-
-class ScheduleDays(models.Model):
-
-    # Fields
-    name = models.CharField(max_length=255)
-    slug = extension_fields.AutoSlugField(populate_from='name', blank=True)
-    created = models.DateTimeField(auto_now_add=True, editable=False)
-    last_updated = models.DateTimeField(auto_now=True, editable=False)
-    monday = models.BooleanField(default=True)
-    tuesday = models.BooleanField(default=True)
-    wednesday = models.BooleanField(default=True)
-    thursday = models.BooleanField(default=True)
-    friday = models.BooleanField(default=True)
-    saturday = models.BooleanField(default=True)
-    sunday = models.BooleanField(default=True)
-
-    # Relationship Fields
-    captureschedule = models.OneToOneField('lapsecore.CaptureSchedule', )
-    exporttimefilter = models.OneToOneField('lapsecore.ExportTimeFilter', )
-
-    class Meta:
-        ordering = ('-created',)
-
-    def __unicode__(self):
-        return u'%s' % self.slug
-
-    def get_absolute_url(self):
-        return reverse('lapsecore_scheduledays_detail', args=(self.slug,))
-
-
-    def get_update_url(self):
-        return reverse('lapsecore_scheduledays_update', args=(self.slug,))
-
-
+        return reverse('lapsecore_capture_update', args=(self.slug,))

@@ -4,12 +4,21 @@
 <p><a class="btn btn-default" href="{% url 'lapsecore_capture_list' %}">Capture Listing</a></p>
 <table class="table">
 <tr><td>name</td><td>{{ object.name }}</td></tr>
-<tr><td>collection_id</td><td>{{ object.collection_id }}</td></tr>
-<tr><td>enabled</td><td>{{ object.enabled }}</td></tr>
-<tr><td>last_capture</td><td>{{ object.last_capture }}</td></tr>
 <tr><td>slug</td><td>{{ object.slug }}</td></tr>
 <tr><td>created</td><td>{{ object.created }}</td></tr>
 <tr><td>last_updated</td><td>{{ object.last_updated }}</td></tr>
+    <tr>
+        <td>collection_id</td>
+        <td>{{ object.collection_id }}</td>
+    </tr>
+    <tr>
+        <td>capture_start</td>
+        <td>{{ object.capture_start }}</td>
+    </tr>
+    <tr>
+        <td>capture_end</td>
+        <td>{{ object.capture_end }}</td>
+    </tr>
 </table>
 <a class="btn btn-primary" href="{{object.get_update_url}}">Edit Capture</a>
 

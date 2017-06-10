@@ -6,24 +6,24 @@
 <tr>
 <td>ID</td><td>Link</td>
     <td>name</td>
-    <td>collection_id</td>
-    <td>enabled</td>
-    <td>last_capture</td>
     <td>slug</td>
     <td>created</td>
     <td>last_updated</td>
+    <td>collection_id</td>
+    <td>capture_start</td>
+    <td>capture_end</td>
 </tr>
 {% for object in object_list %}
 <tr>
     <td>{{object.pk}}</td>
     <td><a href="{{object.get_absolute_url}}">{{object}}</a></td>
     <td>{{ object.name }}</td>
-    <td>{{ object.collection_id }}</td>
-    <td>{{ object.enabled }}</td>
-    <td>{{ object.last_capture }}</td>
     <td>{{ object.slug }}</td>
     <td>{{ object.created }}</td>
     <td>{{ object.last_updated }}</td>
+    <td>{{ object.collection_id }}</td>
+    <td>{{ object.capture_start }}</td>
+    <td>{{ object.capture_end }}</td>
 </tr>
 {% endfor %}
 </table><a class="btn btn-primary" href="{% url 'lapsecore_capture_create' %}">Create new Capture</a>
