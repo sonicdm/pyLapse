@@ -83,6 +83,7 @@ webcam.save_image('/full/output/directory/path/', prefix='Filename Prefix ', opt
         Security
             allow outside access?
         Options
+            Time Zone: dropdown
             Launch browser on startup?: []
         [Save Changes] [Restart pyLapse]
 
@@ -162,6 +163,7 @@ webcam.save_image('/full/output/directory/path/', prefix='Filename Prefix ', opt
         auto-resize?: [] Automatically resize images added to collection (default off)
             size: default (1920x1080)
             quality: (default 50)
+        auto-optimize?: [] automatically make the file as small as possible (saves disk space for long captures)
         collection folder location: (default: %user%/pictures/pyLapse/<collection name>)
     /delete
     /edit

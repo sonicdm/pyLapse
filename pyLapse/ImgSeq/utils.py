@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import traceback
 from operator import itemgetter
@@ -13,9 +14,9 @@ def setpriority():
     ps.nice(16384)
 
 
-def clear_target(directory, ext='.jpg'):
+def clear_target(directory, mask='*.jpg'):
     import glob
-    taggedfordeath = glob.glob(directory + r'\*.jpg')
+    taggedfordeath = glob.glob(directory + r'\{mask}'.format(mask=mask))
     Threading().thread_with_progressbar(os.remove, taggedfordeath, sendarg_i=True)
 
 
@@ -261,3 +262,7 @@ class Threading:
                         print future.result()
                     result_count += 1
             executor.shutdown(wait=True)
+
+
+def is_image_url(url):
+    return True if re.match(r'(http)?s?:?(//[^\"\']*\.(?:png|jpg|jpeg|gif|svg))', url) else False

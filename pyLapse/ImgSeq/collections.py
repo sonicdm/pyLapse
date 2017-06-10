@@ -26,7 +26,8 @@ class Collection:
         self.images = imageset_load(self.collection_dir, ext, mask, filematch)
 
     def __str__(self):
-        print "Image Collection: %s - Location: %s" % (self.name, self.collection_dir)
+        return "Image Collection: %s, Location: %s, Image Count: %s" % (self.name, self.collection_dir,
+                                                                        self.images.imagecount)
 
     def get_meta_file(self):
         """

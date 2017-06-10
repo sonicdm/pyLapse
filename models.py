@@ -261,7 +261,6 @@ class CollectionFile(models.Model):
     def get_absolute_url(self):
         return reverse('lapsecore_collectionfile_detail', args=(self.slug,))
 
-
     def get_update_url(self):
         return reverse('lapsecore_collectionfile_update', args=(self.slug,))
 
@@ -292,7 +291,6 @@ class CaptureScheduleDays(models.Model):
 
     def get_absolute_url(self):
         return reverse('lapsecore_capturescheduledays_detail', args=(self.slug,))
-
 
     def get_update_url(self):
         return reverse('lapsecore_capturescheduledays_update', args=(self.slug,))

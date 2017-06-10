@@ -5,10 +5,6 @@ library for handling time operations on image sets.
 import datetime
 
 from tzlocal import get_localzone
-
-import image
-import utils
-import dateutil
 from dateutil import parser
 import os
 
@@ -26,7 +22,6 @@ class TimeSpans:
     everyday2hours = [8, 10, 12, 14, 16, 20]
     fifteenminutes = [0, 15, 30, 45]
     dawntodusk = [i for i in (xrange(6, 21))]
-
 
 
 def dayslice(fileindex,
