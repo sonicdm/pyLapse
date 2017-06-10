@@ -1,95 +1,105 @@
-from lapsetime import TimeSpans
-timespans = TimeSpans()
+import six
+from apscheduler.triggers.cron import CronTrigger
+from os.path import basename, join
+from image import imageset_load, prepare_output_dir, ImageIO
+from lapsetime import cron_image_filter
+from settings import outside
 
-outside = dict(
-    name="Outside 1",
-    sequence_storage=r'F:\Timelapse\Image Sequences\Outside 1',
-    inputdir=r'F:\Timelapse\2016\Outside 1',
-    exports=dict(
-        full=dict(
-            subdir=r'Full',
-            minutelist=timespans.fifteenminutes,
-            span='Full Time Span 15 Minute Intervals - Outside',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Outside ",
-            enabled=True
-        ),
-        all=dict(
-            subdir=r'All Frames',
-            allframes=True,
-            span='Every Frame - Outside',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Outside ",
-            enabled=False
-        ),
-        day=dict(
-            subdir=r'Day',
-            hourlist=[i for i in xrange(5, 22)],
-            minutelist=timespans.fifteenminutes,
-            span='Day Time Only 5am to 9pm - 15 minute intervals - Outside',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Outside ",
-            enabled=True
-        ),
-        night=dict(
-            subdir=r'Night',
-            hourlist=timespans.night,
-            minutelist=timespans.fifteenminutes,
-            span='Night Time Only 9pm to 5 am - 15 minute intervals - Outside',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Outside ",
-            enabled=True
-        ),
-    )
+CRON_ARG_NAMES = ('year', 'month', 'day', 'week', 'day_of_week', 'hour', 'minute', 'second')
+WRITER_OPTIONS = (
+    'resize', 'quality', 'optimize', 'resolution', 'drawtimestamp', 'timestampformat', 'timestampfont',
+    'timestampfontsize', 'timestampcolor', 'timestamppos', 'prefix', 'zeropadding'
 )
 
-# Seed Closet
-seed_closet = dict(
-    name="Seed Closet",
-    sequence_storage=r'F:\Timelapse\Image Sequences\Seed Closet',
-    inputdir=r'F:\Timelapse\2016\Seedling Closet',
-    exports=dict(
-        full=dict(
-            subdir=r'Full',
-            minutelist=timespans.fifteenminutes,
-            span='Full Time Span 15 Minute Intervals - Seed Closet',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Seed Closet ",
-            enabled=True
-        ),
-        all=dict(
-            subdir=r'All Frames',
-            allframes=True,
-            span='Every Frame - Seed Closet',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Seed Closet ",
-            enabled=False
-        ),
-        day=dict(
-            subdir=r'Day',
-            hourlist=[i for i in xrange(5, 22)],
-            minutelist=timespans.fifteenminutes,
-            span='Day Time Only 5am to 9pm - Seed Closet',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Seed Closet ",
-            enabled=True
-        ),
-        night=dict(
-            subdir=r'Night',
-            hourlist=timespans.night,
-            minutelist=timespans.fifteenminutes,
-            span='Night Time Only 9pm to 5 am - Seed Closet',
-            drawtimestamp=True,
-            optimize=True,
-            prefix="Seed Closet ",
-            enabled=True
-        ),
+
+class Collection:
+    def __init__(self, name, export_dir, collection_dir, export_configs=None, ext='jpg', mask='*', filematch=None):
+        config_dict = outside
+        self.name = config_dict['name']
+        self.sequence_storage = config_dict['sequence_storage']
+        self.collection_dir = config_dict['inputdir']
+        self.export_dir = export_dir
+        if export_configs:
+            self._exports_from_config(export_configs)
+        self.exports = dict()
+        self.captures = dict()
+        self.images = imageset_load(self.collection_dir, ext, mask, filematch)
+
+    def __str__(self):
+        print "Image Collection: %s - Location: %s" % (self.name, self.collection_dir)
+
+    def get_meta_file(self):
+        """
+        get metadata from .pyLapse file in the main collection directory
+        :return:
+        """
+        pass
+
+    def update_meta_file(self):
+        pass
+
+    def add_export(self, name, subdir, prefix="", desc="", **kwargs):
+        cron_args = dict((key, value) for (key, value) in six.iteritems(kwargs)
+                         if key in CRON_ARG_NAMES and value is not None)
+        self.exports[name] = Export(name, subdir, self.images, **cron_args)
+
+    def get_exports(self):
+        yield self.exports
+
+    def export(self, exportname, **writer_args):
+        self.exports[exportname].run(self.export_dir, **writer_args)
+
+    def export_all(self, **writer_args):
+        for exportname in self.exports.keys():
+            self.exports[exportname].run(self.export_dir, **writer_args)
+
+    def add_capture(self):
+        pass
+
+    def _exports_from_config(self, exports):
+        if not exports:
+            pass
+        for name, config in exports.iteritems():
+            subdir = config.pop('subdir', name)
+            desc = config.pop('span', '')
+            prefix = config.pop('prefix', '')
+            self.add_export(name, subdir, prefix, desc, **config)
+
+
+class Export(CronTrigger):
+    CRON_ARG_NAMES = ('year', 'month', 'day', 'week', 'day_of_week', 'hour', 'minute', 'second')
+    WRITER_OPTIONS = (
+        'resize', 'quality', 'optimize', 'resolution', 'drawtimestamp', 'timestampformat', 'timestampfont',
+        'timestampfontsize', 'timestampcolor', 'timestamppos', 'prefix', 'zeropadding'
     )
-)
+
+    def __init__(self, name, subdir, imageset, desc=None, year=None, month=None, day=None, week=None, day_of_week=None,
+                 hour=None, minute=None, second=None, start_date=None, end_date=None, timezone=None, **kwargs):
+        self.cron_args = dict((key, value) for (key, value) in six.iteritems(locals())
+                              if key in self.CRON_ARG_NAMES and value is not None)
+        self.writer_args = dict((key, value) for (key, value) in six.iteritems(kwargs)
+                                if key in self.WRITER_OPTIONS and value is not None)
+        self.imageset = imageset
+        self.name = name
+        self.subdir = subdir
+        self.desc = desc
+        super(Export, self).__init__(**self.cron_args)
+
+    def run(self, outputdir, **kwargs):
+        writer_args = dict((key, value) for (key, value) in six.iteritems(kwargs)
+                           if key in self.WRITER_OPTIONS and value is not None)
+        io = ImageIO()
+        imageindex = self.imageset.imageindex
+        imagelist = cron_image_filter(imageindex, self, fuzzy=5)
+        ext = basename(imageindex.keys()[0]).split('.')[-1]
+        prepare_output_dir(outputdir, ext='jpg')
+        outindex = self.imageset.index_files(imagelist)
+        outputdir = join(outputdir, self.subdir)
+        io.write_imageset(outindex, outputdir, **writer_args)
+
+    def __str__(self):
+        value = super(Export, self).__str__()
+        return "Export: {name} - {desc} - {cron}".format(name=self.name, desc=self.desc, cron=value)
+
+    def schedule(self, scheduler, **kwargs):
+        pass
