@@ -6,7 +6,7 @@ detailed scheduling and export options
 The core of pyLapse lies in the ImgSeq module. This is where all of the image capturing, saving, filtering and processing happens.
 Still very much WIP
 
-### Image loading, filtering and saving
+### Image loading, filtering, and saving:
 #### Load a directory of files:
 ```python
 from pyLapse.ImgSeq.collections import Collection
@@ -25,7 +25,19 @@ collection.add_export('Export Name', subdir='subdirectory', minute='*/15', hour=
 #### Run an export:
 ```python
 # Runs the export and passes on arguments to the image writer
-collection.export.run('Export Name', '/path/to/output/', drawtimestamp=True, optimize=True)
+collection.export.run('Export Name', '/path/to/output/', prefix='Filename Prefix ', drawtimestamp=True, optimize=True)
+```
+### Camera operations:
+#### Create camera from IP Camera:
+```python
+from pyLapse.ImgSeq.camera import Camera
+webcam = Camera('Name', r'http://192.168.1.106:8080/photoaf.jpg', 'Physical Location (optional)')
+```
+
+#### Grab image from IP Camera:
+```python
+# Saves image to output directory and passes kwargs to the file writer.
+webcam.save_image('/full/output/directory/path/', prefix='Filename Prefix ', optimize=True)
 ```
 
 ## Planned Web Interface Outline:
