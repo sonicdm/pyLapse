@@ -30,22 +30,22 @@ def next_job():
 
 
 def grab_outside():
-    imageurl = cameras.outside.imageurl
-    name = cameras.outside.name
+    imageurl = cameras.outside_camera.imageurl
+    name = cameras.outside_camera.name
     print colorama.Fore.YELLOW + "{timestamp}: Grabbing {cameraname} from {url}\n".format(cameraname=name, url=imageurl,
                                                                                           timestamp=datetime.now())
-    cameras.outside.save_image(outside_output, prefix="Outside ")
+    cameras.outside_camera.save_image(outside_output, prefix="Outside ")
     print colorama.Fore.GREEN + "{timestamp}: Success Grabbed {cameraname} from {url}\n".format(cameraname=name,
                                                                                                 url=imageurl,
                                                                                                 timestamp=datetime.now())
 
 
 def grab_closet():
-    imageurl = cameras.seed_closet.imageurl
-    name = cameras.seed_closet.name
+    imageurl = cameras.seed_closet_camera.imageurl
+    name = cameras.seed_closet_camera.name
     print colorama.Fore.YELLOW + "{timestamp}: Grabbing {cameraname} from {url}\n".format(cameraname=name, url=imageurl,
                                                                                           timestamp=datetime.now())
-    cameras.seed_closet.save_image(seed_output, prefix="Seed Closet ")
+    cameras.seed_closet_camera.save_image(seed_output, prefix="Seed Closet ")
     print colorama.Fore.GREEN + "{timestamp}: Success Grabbed {cameraname} from {url}\n".format(cameraname=name,
                                                                                                 url=imageurl,
                                                                                                 timestamp=datetime.now())

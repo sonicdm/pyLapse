@@ -121,7 +121,7 @@ Threading and process tests
 
 def test_scheduling():
     from apscheduler.schedulers.blocking import BlockingScheduler
-    from cameras import seed_closet
+    from cameras import seed_closet_camera
     outputdir = r'F:\test'
 
     def next_run():
@@ -130,7 +130,7 @@ def test_scheduling():
     def save_image(capture):
         print datetime.datetime.now()
         print "Saving Image"
-        seed_closet.save_image(outputdir, prefix="Scheduled")
+        seed_closet_camera.save_image(outputdir, prefix="Scheduled")
 
     sched = BlockingScheduler()
     sched.add_job(save_image, 'cron', ['day'], minute='*', hour='5-21', )

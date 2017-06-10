@@ -40,5 +40,5 @@ class Camera:
         save_image(image, outputdir, timestamp, **kwargs)
 
 
-outside = Camera('Galaxy S4 Outside', r'http://192.168.1.106:8080/photoaf.jpg', 'Outside')
-seed_closet = Camera('Galaxy S4 Seed Closet', r'http://192.168.1.105:8080/photoaf.jpg', 'Closet')
+outside_camera = Camera('Galaxy S4 Outside', r'http://192.168.1.106:8080/photoaf.jpg', 'Outside')
+seed_closet_camera = Camera('Galaxy S4 Seed Closet', r'http://192.168.1.105:8080/photoaf.jpg', 'Closet')
