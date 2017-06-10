@@ -1,4 +1,4 @@
-pyLapse:
+# pyLapse:
 Automatically save images from ip cameras into collections for export and or render
 detailed scheduling and export options
 
