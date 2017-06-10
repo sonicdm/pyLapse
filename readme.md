@@ -6,7 +6,7 @@ detailed scheduling and export options
 The core of pyLapse lies in the ImgSeq module. This is where all of the image capturing, saving, filtering and processing happens.
 Still very much WIP
 
-### Image loading, filtering and savingL
+### Image loading, filtering and saving
 #### Load a directory of files:
 ```python
 from pyLapse.ImgSeq.collections import Collection
