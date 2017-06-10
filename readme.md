@@ -10,7 +10,7 @@ Still very much WIP
 #### Load a directory of files:
 ```python
 from pyLapse.ImgSeq.collections import Collection
-collection = Collection('Name', r'output_directory_goes_here', r'input_directory_goes here',)
+collection = Collection('Name', r'/path/to/output/directory', r'/path/to/input/directory')
 >>> print collection
 Image Collection: Name, Location: Input Directory, Image Count: 12020
 ```
@@ -25,8 +25,9 @@ collection.add_export('Export Name', subdir='subdirectory', minute='*/15', hour=
 #### Run an export:
 ```python
 # Runs the export and passes on arguments to the image writer
-collection.export.run('Export Name', '/path/to/output/', prefix='Filename Prefix ', drawtimestamp=True, optimize=True)
+collection.export.run('Export Name', '/path/to/output/directory', prefix='Filename Prefix ', drawtimestamp=True, optimize=True)
 ```
+
 ### Camera operations:
 #### Create camera from IP Camera:
 ```python
@@ -37,7 +38,7 @@ webcam = Camera('Name', r'http://192.168.1.106:8080/photoaf.jpg', 'Physical Loca
 #### Grab image from IP Camera:
 ```python
 # Saves image to output directory and passes kwargs to the file writer.
-webcam.save_image('/full/output/directory/path/', prefix='Filename Prefix ', optimize=True)
+webcam.save_image('/path/to/output/directory', prefix='Filename Prefix ', optimize=True)
 ```
 
 ## Planned Web Interface Outline:
