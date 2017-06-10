@@ -1,23 +1,61 @@
-pyLapse:
+# pyLapse
 Automatically save images from ip cameras into collections for export and or render
 detailed scheduling and export options
 
-Interface Outline:
-# MENU
-Home - /
-Captures - /captures
-Cameras - /cameras
-Collections - /collections
-Time Ranges - /timefilters
-Scheduler - /scheduler
-Import/Export ->
-    Import /collections/import
-    Export - /export
-Logs - /logs
+## Current Functionality
+The core of pyLapse lies in the ImgSeq module. This is where all of the image capturing, saving, filtering and processing happens.
+Still very much WIP
+
+### Image loading, filtering, and saving:
+#### Load a directory of files:
+```python
+from pyLapse.ImgSeq.collections import Collection
+collection = Collection('Name', r'output_directory_goes_here', r'input_directory_goes here',)
+>>> print collection
+Image Collection: Name, Location: Input Directory, Image Count: 12020
+```
+
+#### Configure an export:
+```python
+# Creates an export that exports every 15 minutes of every other hour.
+# Follows traditional cron formats. 
+# subdir is the location inside the export directory to write to if specified. 
+collection.add_export('Export Name', subdir='subdirectory', minute='*/15', hour='*/2')
+```
+#### Run an export:
+```python
+# Runs the export and passes on arguments to the image writer
+collection.export.run('Export Name', '/path/to/output/', prefix='Filename Prefix ', drawtimestamp=True, optimize=True)
+```
+### Camera operations:
+#### Create camera from IP Camera:
+```python
+from pyLapse.ImgSeq.camera import Camera
+webcam = Camera('Name', r'http://192.168.1.106:8080/photoaf.jpg', 'Physical Location (optional)')
+```
+
+#### Grab image from IP Camera:
+```python
+# Saves image to output directory and passes kwargs to the file writer.
+webcam.save_image('/full/output/directory/path/', prefix='Filename Prefix ', optimize=True)
+```
+
+## Planned Web Interface Outline:
+### MENU
+* Home - /
+  * Captures - /captures
+  * Cameras - /cameras
+  * Collections - /collections
+  * Time Ranges - /timefilters
+  * Scheduler - /scheduler
+  * Import/Export ->
+     * Import /collections/import
+     * Export - /export
+ * Logs - /logs
 
 
-# ROOT
-/
+### Endpoint Map
+```/
     Dashboard
         List of scheduled captures - link to edit captures:
             per line
@@ -30,7 +68,8 @@ Logs - /logs
         Collections:
             Last captured images
         Storage Stats
-        Notifications (missed captures, drive space running low, capture ended/started etc., empty capture detected)
+        Notifications (missed captures, drive space running low, capture ended/started etc., 
+                       empty capture detected)
 
 
 /settings - ini file not db.
@@ -163,4 +202,4 @@ Logs - /logs
     /edit
 
 
-/logs - display logs
+/logs - display logs```
