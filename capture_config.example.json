@@ -1,0 +1,14 @@
+{
+  "cameras": {
+    "camera_1": {
+      "name": "Camera 1",
+      "url": "http://192.168.1.100:8080/photo.jpg",
+      "output_dir": "/path/to/output/camera1",
+      "prefix": "Camera1 ",
+      "schedules": [
+        { "id": "cam1_day", "hour": "6-20", "minute": "*" },
+        { "id": "cam1_night", "hour": "21-24,0-5", "minute": "*/15" }
+      ]
+    }
+  }
+}
