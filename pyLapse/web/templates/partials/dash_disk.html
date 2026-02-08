@@ -1,0 +1,14 @@
+{% if disk_info %}
+<h2>Disk Usage</h2>
+{% for d in disk_info %}
+<div style="margin-bottom:0.75rem;">
+  <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+    <span>{{ d.camera }} — <code>{{ d.path }}</code></span>
+    <span>{{ d.used }} / {{ d.total }} ({{ d.percent }}%)</span>
+  </div>
+  <div class="progress-outer" style="margin-top:0.25rem;">
+    <div class="progress-inner" style="width:{{ d.percent }}%;"></div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}

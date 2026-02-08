@@ -1,0 +1,53 @@
+{% if message is defined and message %}
+<p class="success" style="margin-bottom:0.5rem;">{{ message }}</p>
+{% endif %}
+
+{% if saved_collections %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Path</th>
+      <th>Date Source</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for coll_id, coll in saved_collections.items() %}
+    <tr>
+      <td><strong>{{ coll.get('name', coll_id) }}</strong></td>
+      <td><code>{{ coll.get('path', '') }}</code></td>
+      <td>{{ coll.get('date_source', 'filename') }}</td>
+      <td>
+        <div class="btn-row">
+          <button type="button" class="btn-small"
+                  hx-post="/collections/load-saved"
+                  hx-vals='{"coll_id": "{{ coll_id }}"}'
+                  hx-target="#collection-result"
+                  hx-swap="innerHTML">Load</button>
+          <button type="button" class="btn-small"
+                  hx-get="/exports/picker?coll_id={{ coll_id }}"
+                  hx-target="#export-modal-body"
+                  hx-swap="innerHTML"
+                  hx-on::after-request="openExportModal()">Export</button>
+          <button type="button" class="btn-small edit-coll-btn"
+                  data-path="{{ coll.get('path','') }}"
+                  data-date-source="{{ coll.get('date_source','filename') }}"
+                  data-coll-id="{{ coll_id }}"
+                  data-name="{{ coll.get('name','') }}"
+                  data-ext="{{ coll.get('ext','jpg') }}">Edit</button>
+          <button type="button" class="btn-small btn-danger"
+                  hx-post="/collections/delete"
+                  hx-vals='{"coll_id": "{{ coll_id }}"}'
+                  hx-target="#saved-collections"
+                  hx-swap="innerHTML"
+                  hx-confirm="Delete this collection?">Delete</button>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No saved collections. Browse a directory and save it.</p>
+{% endif %}

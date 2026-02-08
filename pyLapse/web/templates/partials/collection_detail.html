@@ -1,0 +1,127 @@
+<section class="card">
+  <div class="camera-card-header">
+    <h2>{{ coll.get('name', coll_id) }}</h2>
+    <span class="muted">{{ coll.get('path', '') }}</span>
+  </div>
+
+  {% include "partials/collection_stats.html" %}
+
+  {% if stats.day_counts %}
+  <details>
+    <summary>Day-by-Day Breakdown ({{ stats.days }} days)</summary>
+    <table>
+      <thead><tr><th>Day</th><th>Images</th></tr></thead>
+      <tbody>
+        {% for day, count in stats.day_counts.items() %}
+        <tr><td>{{ day }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+</section>
+
+<!-- Export from this collection -->
+<section class="card">
+  <h2>Export from "{{ coll.get('name', coll_id) }}"</h2>
+  <form hx-post="/collections/export" hx-target="#coll-export-result" hx-swap="innerHTML">
+    <input type="hidden" name="input_dir" value="{{ coll.get('path', '') }}">
+    <input type="hidden" name="date_source" value="{{ coll.get('date_source', 'filename') }}">
+    <input type="hidden" name="coll_name" value="{{ coll.get('name', coll_id) }}">
+
+    <div class="form-grid">
+      <label class="full-width">Output Directory
+        <div class="input-with-browse">
+          <input type="text" name="output_dir" id="coll-export-dir" value="{{ coll.get('export_dir', '') }}" placeholder="/path/to/export" required>
+          <button type="button" class="btn-secondary" onclick="openFolderModal('coll-export-dir')">Browse</button>
+        </div>
+      </label>
+    </div>
+
+    <h3>Time Filter Preset</h3>
+    <div class="preset-chips">
+      <span class="preset-chip" onclick="applyCPreset('*','*',this)">All</span>
+      <span class="preset-chip" onclick="applyCPreset('6-20','*',this)">Dawn to Dusk</span>
+      <span class="preset-chip" onclick="applyCPreset('6-20','0',this)">Every Day Hour</span>
+      <span class="preset-chip" onclick="applyCPreset('*','*/10',this)">Every 10 Min</span>
+      <span class="preset-chip" onclick="applyCPreset('*','*/15',this)">Every 15 Min</span>
+      <span class="preset-chip" onclick="applyCPreset('*','*/5',this)">Every 5 Min</span>
+      <span class="preset-chip" onclick="applyCPreset('*/2','0',this)">Every 2 Hours</span>
+      <span class="preset-chip" onclick="applyCPreset('8,10,12,14,16,20','0',this)">Day 2-Hour</span>
+    </div>
+    <div class="form-grid">
+      <label>Hour <input type="text" name="hour" id="coll-export-hour" value="*" placeholder="e.g. 6-20"></label>
+      <label>Minute <input type="text" name="minute" id="coll-export-minute" value="*" placeholder="e.g. */15"></label>
+    </div>
+
+    <details>
+      <summary>Timestamp Settings</summary>
+      <div class="form-grid">
+        <label class="full-width">
+          <input type="checkbox" name="drawtimestamp" value="true"> Draw timestamp overlay
+        </label>
+        <label>Format <input type="text" name="timestampformat" value="%Y-%m-%d %I:%M:%S %p"></label>
+        <label>Font
+          <select name="timestampfont">
+            <option value="">Default (Roboto)</option>
+            {% for f in fonts %}
+            <option value="{{ f.path }}">{{ f.name }} ({{ f.source }})</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Font Size <input type="number" name="timestampfontsize" value="36" min="8" max="200"></label>
+        <label>Color R <input type="number" name="ts_r" value="255" min="0" max="255"></label>
+        <label>Color G <input type="number" name="ts_g" value="255" min="0" max="255"></label>
+        <label>Color B <input type="number" name="ts_b" value="255" min="0" max="255"></label>
+        <label>Position X <input type="number" name="ts_x" value="0" min="0"></label>
+        <label>Position Y <input type="number" name="ts_y" value="0" min="0"></label>
+      </div>
+    </details>
+
+    <details>
+      <summary>Image Processing</summary>
+      <div class="form-grid">
+        <label class="full-width">
+          <input type="checkbox" name="resize" value="true"> Resize images
+        </label>
+        <label>Width <input type="number" name="resolution_w" value="1920" min="1"></label>
+        <label>Height <input type="number" name="resolution_h" value="1080" min="1"></label>
+        <label>Quality <input type="range" name="quality" value="50" min="1" max="100" oninput="this.nextElementSibling.textContent=this.value"><span>50</span></label>
+        <label class="full-width">
+          <input type="checkbox" name="optimize" value="true"> Optimize (slower)
+        </label>
+        <label>Prefix <input type="text" name="prefix" value=""></label>
+        <label>Zero Padding <input type="number" name="zeropadding" value="5" min="1" max="10"></label>
+      </div>
+    </details>
+
+    <details>
+      <summary>Video Creation</summary>
+      <div class="form-grid">
+        <label class="full-width">
+          <input type="checkbox" name="create_video" value="true"> Create video after export
+        </label>
+        <label>FPS <input type="number" name="video_fps" value="24" min="1" max="120"></label>
+        <label>Pattern <input type="text" name="video_pattern" value="*.jpg"></label>
+        <label>Codec
+          <select name="video_codec">
+            <option value="libx264" selected>H.264 (libx264)</option>
+            <option value="libx265">H.265 (libx265)</option>
+            <option value="mpeg4">MPEG-4</option>
+          </select>
+        </label>
+        <label class="full-width">Output Path
+          <div class="input-with-browse">
+            <input type="text" name="video_output" id="coll-vid-output" value="" placeholder="Leave blank to auto-generate from output dir">
+            <button type="button" class="btn-secondary" onclick="openFolderModal('coll-vid-output')">Browse</button>
+          </div>
+        </label>
+        <p class="muted full-width" style="margin:0; font-size:0.8rem;">If blank, video saves as <code>&lt;output_dir&gt;.mp4</code> next to the export folder.</p>
+      </div>
+    </details>
+
+    <button type="submit">Start Export</button>
+  </form>
+
+  <div id="coll-export-result" style="margin-top:0.75rem;"></div>
+</section>

@@ -1,0 +1,35 @@
+{% set active_tasks = tasks | selectattr('status', 'in', ['pending', 'running']) | list %}
+{% set done_tasks = tasks | selectattr('status', 'in', ['completed', 'failed']) | list %}
+{% if active_tasks or done_tasks %}
+<h2>Task Queue</h2>
+<table>
+  <thead><tr><th>Name</th><th>Status</th><th>Progress</th><th></th></tr></thead>
+  <tbody>
+    {% for t in active_tasks %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td><span class="badge">{{ t.status }}</span></td>
+      <td>
+        <div class="progress-outer" style="display:inline-block;width:100px;vertical-align:middle;">
+          <div class="progress-inner" style="width:{{ t.progress|round(1) }}%;"></div>
+        </div>
+        {{ t.progress|round(0)|int }}%
+      </td>
+      <td></td>
+    </tr>
+    {% endfor %}
+    {% for t in done_tasks %}
+    <tr>
+      <td class="muted">{{ t.name }}</td>
+      <td>
+        <span class="badge {% if t.status == 'completed' %}badge-ok{% elif t.status == 'failed' %}badge-err{% endif %}">{{ t.status }}</span>
+      </td>
+      <td class="muted">{{ t.progress|round(0)|int }}%</td>
+      <td><button class="btn-small btn-secondary" onclick="this.closest('tr').remove()" style="padding:0.1rem 0.4rem;font-size:0.75rem;">dismiss</button></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted" style="margin:0.5rem 0;">No active tasks.</p>
+{% endif %}

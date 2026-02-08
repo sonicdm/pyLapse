@@ -1,0 +1,45 @@
+<div class="camera-card">
+  <div class="camera-card-header">
+    <div>
+      <h3 style="margin:0;">{{ exp.get('name', exp_id) }}</h3>
+      {% if coll_name is defined and coll_name %}
+      <span class="muted" style="font-size:0.8rem;">{{ coll_name }}</span>
+      {% endif %}
+    </div>
+    <button hx-get="/exports/{{ coll_id }}/{{ exp_id }}/edit"
+            hx-target="#export-modal-body"
+            hx-swap="innerHTML"
+            hx-on::after-request="openExportModal()"
+            class="btn-small btn-secondary">Edit</button>
+  </div>
+  <p class="muted" style="margin:0.25rem 0;">Input: <code>{{ exp.get('input_dir', '') }}</code></p>
+  <p class="muted" style="margin:0;font-size:0.85rem;">Output: <code>{{ exp.get('output_dir', '') }}</code></p>
+  {% set hour = exp.get('hour', '*') %}
+  {% set minute = exp.get('minute', '*') %}
+  <p class="muted" style="margin:0.15rem 0 0;font-size:0.85rem;">
+    {% if minute == '*' and hour == '*' %}
+      Every minute, all day
+    {% elif minute.startswith('*/') and hour == '*' %}
+      Every {{ minute[2:] }} min, all day
+    {% elif minute == '0' and hour == '*' %}
+      Every hour
+    {% elif minute == '0' and hour.startswith('*/') %}
+      Every {{ hour[2:] }} hours
+    {% elif minute == '0' and '-' in hour %}
+      Hourly, {{ hour }}h
+    {% else %}
+      Filter: {{ hour }}h / {{ minute }}m
+    {% endif %}
+    {% if exp.get('resize') %} | Resize {{ exp.get('resolution_w', 1920) }}x{{ exp.get('resolution_h', 1080) }}{% endif %}
+    {% if exp.get('drawtimestamp') %} | Timestamp{% endif %}
+    {% if exp.get('optimize') %} | Optimized{% endif %}
+    {% if exp.get('create_video') %} | <strong>+ Video</strong> ({{ exp.get('video_fps', 24) }}fps, {{ exp.get('video_codec', 'libx264') }}){% endif %}
+  </p>
+  <div class="btn-row" style="margin-top:0.5rem;">
+    <button hx-post="/exports/{{ coll_id }}/{{ exp_id }}/run" hx-target="#export-result" hx-swap="innerHTML">Run{% if exp.get('create_video') %} + Video{% endif %}</button>
+    {% if not exp.get('create_video') %}
+    <a href="/videos?input_dir={{ exp.get('output_dir', '') | urlencode }}&name={{ exp.get('name', '') | urlencode }}"
+       class="btn-small" style="text-decoration:none;">Create Video</a>
+    {% endif %}
+  </div>
+</div>

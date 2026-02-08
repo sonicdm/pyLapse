@@ -1,0 +1,39 @@
+<h3>Exports for "{{ coll.get('name', coll_id) }}"</h3>
+<p class="muted" style="margin:0 0 0.75rem;">Source: <code>{{ coll.get('path', '') }}</code></p>
+
+{% if exports %}
+<div style="display:flex; flex-direction:column; gap:0.4rem; margin-bottom:1rem;">
+  {% for exp_id, exp in exports.items() %}
+  <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; border:1px solid var(--border); border-radius:4px;">
+    <div>
+      <strong>{{ exp.get('name', exp_id) }}</strong>
+      <span class="muted" style="margin-left:0.5rem; font-size:0.85em;">{{ exp.get('output_dir', '') }}</span>
+      {% if exp.get('create_video') %}<span class="badge" style="font-size:0.7rem; margin-left:0.3rem;">+ Video</span>{% endif %}
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn-small"
+              hx-post="/exports/{{ coll_id }}/{{ exp_id }}/run"
+              hx-target="#export-result"
+              hx-swap="innerHTML"
+              onclick="closeExportModal()">Run</button>
+      <button type="button" class="btn-small btn-secondary"
+              hx-get="/exports/{{ coll_id }}/{{ exp_id }}/edit"
+              hx-target="#export-modal-body"
+              hx-swap="innerHTML">Edit</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<hr style="border:none; border-top:1px solid var(--border); margin:0.75rem 0;">
+{% else %}
+<p class="muted" style="margin:0 0 0.75rem;">No exports configured for this collection yet.</p>
+{% endif %}
+
+<button type="button"
+        hx-get="/exports/add-form?coll_id={{ coll_id }}"
+        hx-target="#export-modal-body"
+        hx-swap="innerHTML">+ Create New Export</button>
+
+<div class="btn-row" style="margin-top:1rem;">
+  <button type="button" class="btn-secondary" onclick="closeExportModal()">Cancel</button>
+</div>

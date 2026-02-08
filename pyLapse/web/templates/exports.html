@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Exports{% endblock %}
+{% block content %}
+<h1>Exports</h1>
+
+<!-- Export configs -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+  <h2 style="margin:0;">Export Configs</h2>
+</div>
+
+<div id="export-grid" class="grid">
+  {% for item in all_exports %}
+    {% set exp_id = item.exp_id %}
+    {% set coll_id = item.coll_id %}
+    {% set coll_name = item.coll_name %}
+    {% set exp = item %}
+    {% include "partials/export_view.html" %}
+  {% endfor %}
+  {% if not all_exports %}
+  <p id="no-exports-msg" class="muted">No export configs. Go to <a href="/collections">Collections</a> to create one.</p>
+  {% endif %}
+</div>
+
+<div id="export-result" style="margin-top:1rem;"></div>
+
+<!-- Export History -->
+<section class="card" style="margin-top:1rem;">
+  <h2>Export History</h2>
+  <div id="export-history">
+    {% include "partials/export_history.html" %}
+  </div>
+</section>
+
+<!-- Export edit modal -->
+<div id="export-modal" class="modal" style="display:none;" onclick="if(event.target===this)closeExportModal()">
+  <div class="modal-content card">
+    <div class="modal-header">
+      <span></span>
+      <button onclick="closeExportModal()" class="btn-secondary">&times;</button>
+    </div>
+    <div id="export-modal-body"></div>
+  </div>
+</div>
+{% endblock %}

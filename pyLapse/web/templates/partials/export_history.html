@@ -1,0 +1,56 @@
+{% if message is defined and message %}
+<p class="success" style="margin-bottom:0.5rem;">{{ message }}</p>
+{% endif %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem;">
+  <span>{% if history_total is defined %}<span class="muted" style="font-size:0.85rem;">{{ history_total }} total</span>{% endif %}</span>
+  <div class="page-size-chips" style="display:flex; gap:0.25rem; align-items:center;">
+    <span class="muted" style="font-size:0.8rem;">Show:</span>
+    {% set lim = history_limit|default(10) %}
+    {% for n in [10, 25, 50, 100] %}
+    <button type="button" class="preset-chip{% if lim == n %} active{% endif %}"
+            hx-get="/api/export-history?limit={{ n }}"
+            hx-target="#export-history"
+            hx-swap="innerHTML">{{ n }}</button>
+    {% endfor %}
+  </div>
+</div>
+
+{% if export_history %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Output</th>
+      <th>Images</th>
+      <th>Date</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for exp in export_history %}
+    <tr>
+      <td><strong>{{ exp.get('name', '') }}</strong></td>
+      <td><code>{{ exp.get('output_dir', '') }}</code></td>
+      <td>{{ exp.get('image_count', '?') }}</td>
+      <td class="muted">{{ exp.get('created_at', '')[:16] }}</td>
+      <td>
+        <div class="btn-row">
+          <button type="button" class="btn-small create-video-btn"
+                  data-input-dir="{{ exp.get('output_dir', '') }}"
+                  data-name="{{ exp.get('name', '') }}">Create Video</button>
+          <button type="button" class="btn-small btn-danger"
+                  hx-post="/exports/delete"
+                  hx-vals='{"export_id": "{{ exp.id }}"}'
+                  hx-target="#export-history"
+                  hx-swap="innerHTML"
+                  hx-confirm="Delete this export record?">Delete</button>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No export history yet.</p>
+{% endif %}

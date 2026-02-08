@@ -1,0 +1,18 @@
+<div class="form-grid" style="margin-bottom:0.75rem;">
+  <div>
+    <p class="muted">Total Images</p>
+    <p><strong>{{ stats.total }}</strong></p>
+  </div>
+  <div>
+    <p class="muted">Days</p>
+    <p><strong>{{ stats.days }}</strong></p>
+  </div>
+  <div>
+    <p class="muted">Avg / Day</p>
+    <p><strong>{{ stats.avg_per_day }}</strong></p>
+  </div>
+  <div>
+    <p class="muted">Date Range</p>
+    <p><strong>{{ stats.first_day or '—' }} to {{ stats.last_day or '—' }}</strong></p>
+  </div>
+</div>

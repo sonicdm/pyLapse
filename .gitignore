@@ -23,5 +23,19 @@ capture_config.json
 *.mov
 *.mkv
 
+# Runtime data (user state)
+collections.json
+history.json
+
+# Playwright test artifacts
+.playwright-mcp/
+
+# Stray screenshots (allow screenshots/ dir for readme)
+/*.png
+
 # Windows temp
 nul
+
+# macOS temp
+.DS_Store
+

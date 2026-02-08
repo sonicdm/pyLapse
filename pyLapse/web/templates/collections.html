@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Collections{% endblock %}
+{% block content %}
+<h1>Collections</h1>
+
+<!-- Saved Collections -->
+<section class="card">
+  <h2>Saved Collections</h2>
+  <div id="saved-collections">
+    {% include "partials/saved_collections.html" %}
+  </div>
+</section>
+
+<!-- Browse / Add New -->
+<section class="card">
+  <h2>Browse & Add Collection</h2>
+  <form id="browse-form" hx-post="/collections/browse" hx-target="#collection-result" hx-swap="innerHTML">
+    <div class="form-grid">
+      <label>Collection Name
+        <input type="text" name="name" id="coll-name" placeholder="My Collection">
+      </label>
+      <label class="full-width">Image Directory
+        <div class="input-with-browse">
+          <input type="text" name="path" id="coll-path" placeholder="/path/to/images" required>
+          <button type="button" class="btn-secondary" onclick="openFolderModal('coll-path')">Browse</button>
+        </div>
+      </label>
+      <label>Date Source
+        <select name="date_source" id="coll-date-source">
+          <option value="filename" selected>From Filename</option>
+          <option value="created">File Created Date</option>
+        </select>
+      </label>
+    </div>
+    <button type="submit">Load Collection</button>
+  </form>
+</section>
+
+<div id="collection-result"></div>
+
+<div id="export-grid" style="display:none;"></div>
+<div id="export-result" style="margin-top:1rem;"></div>
+
+<!-- Export modal (shared with /exports page) -->
+<div id="export-modal" class="modal" style="display:none;" onclick="if(event.target===this)closeExportModal()">
+  <div class="modal-content card">
+    <div class="modal-header">
+      <span></span>
+      <button onclick="closeExportModal()" class="btn-secondary">&times;</button>
+    </div>
+    <div id="export-modal-body"></div>
+  </div>
+</div>
+
+<!-- Save/Edit modal -->
+<div id="save-modal" class="modal" style="display:none;" onclick="if(event.target===this)closeSaveModal()">
+  <div class="modal-content card">
+    <div class="modal-header">
+      <h3 id="save-modal-title">Save Collection</h3>
+      <button onclick="closeSaveModal()" class="btn-secondary">&times;</button>
+    </div>
+    <form hx-post="/collections/save" hx-target="#saved-collections" hx-swap="innerHTML" onsubmit="closeSaveModal()">
+      <input type="hidden" name="coll_id" id="save-coll-id" value="">
+      <div class="form-grid">
+        <label>Collection Name
+          <input type="text" name="name" id="save-name" required placeholder="My Collection">
+        </label>
+        <label class="full-width">Image Directory
+          <div class="input-with-browse">
+            <input type="text" name="path" id="save-path" required placeholder="/path/to/images">
+            <button type="button" class="btn-secondary" onclick="openFolderModal('save-path')">Browse</button>
+          </div>
+        </label>
+        <label>Date Source
+          <select name="date_source" id="save-date-source">
+            <option value="filename">From Filename</option>
+            <option value="created">File Created Date</option>
+          </select>
+        </label>
+        <label>Extension
+          <input type="text" name="ext" id="save-ext" value="jpg" placeholder="jpg">
+        </label>
+      </div>
+      <div class="btn-row">
+        <button type="submit">Save</button>
+        <button type="button" onclick="closeSaveModal()" class="btn-secondary">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

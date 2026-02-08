@@ -1,0 +1,42 @@
+<div class="card{% if not cam.get('enabled', true) %} camera-card disabled{% endif %}" id="camera-card-{{ cam_id }}">
+  <div class="camera-card-header">
+    <h3 style="margin:0;">{{ cam.get('name', cam_id) }}</h3>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <label class="toggle"
+             hx-post="/cameras/{{ cam_id }}/toggle"
+             hx-target="#camera-card-{{ cam_id }}"
+             hx-swap="outerHTML">
+        <input type="checkbox" {% if cam.get('enabled', true) %}checked{% endif %}>
+        <span class="toggle-track"></span>
+      </label>
+      <button type="button" class="btn-secondary btn-small"
+              hx-get="/cameras/{{ cam_id }}/edit"
+              hx-target="#camera-modal-body"
+              hx-swap="innerHTML"
+              hx-on::after-request="openCameraModal()">Edit</button>
+    </div>
+  </div>
+  <p class="muted" style="margin:0.25rem 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ cam.get('url', '') }}"><code style="font-size:0.8em;">{{ cam.get('url', '') }}</code></p>
+  {% if cam.get('output_dir') %}
+  <p class="muted" style="margin:0;font-size:0.85rem;">Output: <code>{{ cam.get('output_dir') }}</code></p>
+  {% endif %}
+  {% set schedules = cam.get('schedules', []) %}
+  {% set total = schedules|length %}
+  {% set disabled_count = schedules | selectattr('enabled', 'equalto', false) | list | length %}
+  <p class="muted" style="margin:0;font-size:0.85rem;">
+    {{ total }} schedule{{ "s" if total != 1 else "" }}{% if disabled_count %} <span style="color:var(--err);">({{ disabled_count }} off)</span>{% endif %}
+  </p>
+  <div class="btn-row" style="margin-top:0.5rem;">
+    <button hx-post="/cameras/{{ cam_id }}/preview" hx-target="#preview-{{ cam_id }}" hx-swap="innerHTML">Preview</button>
+    <button hx-post="/cameras/{{ cam_id }}/grab" hx-target="#grab-{{ cam_id }}" hx-swap="innerHTML" class="btn-secondary">Grab</button>
+    {% if cam.get('output_dir') %}
+    <button hx-post="/cameras/{{ cam_id }}/create-collection"
+            hx-target="#camera-card-{{ cam_id }}"
+            hx-swap="outerHTML"
+            class="btn-secondary btn-small"
+            title="Create a collection for this camera's output directory">Collection+</button>
+    {% endif %}
+  </div>
+  <div id="preview-{{ cam_id }}" class="preview-box"></div>
+  <div id="grab-{{ cam_id }}"></div>
+</div>

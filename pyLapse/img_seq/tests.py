@@ -9,6 +9,7 @@ import os
 import re
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from urllib.error import URLError
 
 import pytest
 from apscheduler.triggers.cron import CronTrigger
@@ -198,14 +199,17 @@ class TestIsImageUrl:
     def test_valid_with_query(self) -> None:
         assert is_image_url("https://example.com/photo.jpg?width=1920") is True
 
-    def test_invalid_no_extension(self) -> None:
-        assert is_image_url("http://example.com/video") is False
+    def test_valid_ip_camera_snapshot(self) -> None:
+        assert is_image_url("http://192.168.1.100/SnapshotJPEG?Resolution=640x480") is True
 
-    def test_invalid_non_image(self) -> None:
-        assert is_image_url("http://example.com/file.txt") is False
+    def test_valid_no_extension(self) -> None:
+        assert is_image_url("http://example.com/video") is True
 
     def test_invalid_no_protocol(self) -> None:
         assert is_image_url("example.com/photo.jpg") is False
+
+    def test_invalid_ftp(self) -> None:
+        assert is_image_url("ftp://example.com/photo.jpg") is False
 
 
 # ---------------------------------------------------------------------------
@@ -808,3 +812,129 @@ class TestVideoErrors:
         with patch("pyLapse.img_seq.video.Path.is_file", return_value=False):
             with pytest.raises(FileNotFoundError, match="ffmpeg not found"):
                 _get_ffmpeg_path()
+
+
+# ---------------------------------------------------------------------------
+# Tests: fonts module
+# ---------------------------------------------------------------------------
+
+
+class TestFonts:
+    def test_get_default_font_returns_path(self) -> None:
+        from pyLapse.img_seq.fonts import get_default_font
+
+        path = get_default_font()
+        assert path.endswith(".ttf")
+        assert os.path.isfile(path)
+
+    def test_get_bundled_fonts(self) -> None:
+        from pyLapse.img_seq.fonts import get_bundled_fonts
+
+        fonts = get_bundled_fonts()
+        assert len(fonts) >= 1
+        assert fonts[0]["source"] == "bundled"
+        assert fonts[0]["name"] == "Roboto"
+
+    def test_get_system_fonts_returns_list(self) -> None:
+        from pyLapse.img_seq.fonts import get_system_fonts
+
+        fonts = get_system_fonts()
+        assert isinstance(fonts, list)
+        # On any OS with fonts installed, we should find at least some
+        if fonts:
+            assert "name" in fonts[0]
+            assert "path" in fonts[0]
+            assert fonts[0]["source"] == "system"
+
+    def test_system_fonts_cached(self) -> None:
+        from pyLapse.img_seq.fonts import get_system_fonts
+
+        first = get_system_fonts()
+        second = get_system_fonts()
+        assert first == second
+
+    def test_list_available_fonts_includes_bundled(self) -> None:
+        from pyLapse.img_seq.fonts import list_available_fonts
+
+        fonts = list_available_fonts()
+        names = [f["name"] for f in fonts]
+        assert "Roboto" in names
+
+    def test_display_name(self) -> None:
+        from pyLapse.img_seq.fonts import _display_name
+
+        assert _display_name("OpenSans-Bold.ttf") == "Open Sans Bold"
+        assert _display_name("DejaVuSans.ttf") == "Deja Vu Sans"
+        assert _display_name("Roboto_Regular.ttf") == "Roboto Regular"
+
+    def test_get_google_font_network_error(self) -> None:
+        from pyLapse.img_seq.fonts import get_google_font
+
+        with patch("pyLapse.img_seq.fonts.urlopen", side_effect=URLError("offline")):
+            result = get_google_font("NonexistentFont")
+        assert result is None
+
+    def test_default_font_used_by_image_module(self) -> None:
+        from pyLapse.img_seq.image import _DEFAULT_FONT
+
+        assert _DEFAULT_FONT is not None
+        assert _DEFAULT_FONT.endswith(".ttf")
+        assert os.path.isfile(_DEFAULT_FONT)
+
+
+# ---------------------------------------------------------------------------
+# Tests: progress callbacks
+# ---------------------------------------------------------------------------
+
+
+class TestProgressCallback:
+    def test_parallel_executor_callback(self) -> None:
+        calls: list[tuple[int, int, str]] = []
+
+        def callback(completed: int, total: int, msg: str) -> None:
+            calls.append((completed, total, msg))
+
+        def double(item: int, _idx: int) -> int:
+            return item * 2
+
+        executor = ParallelExecutor(workers=2)
+        results = executor.run_threaded(double, [1, 2, 3], progress_callback=callback)
+        assert sorted(results) == [2, 4, 6]
+        assert len(calls) == 3
+        # Each call should have total=3
+        assert all(t == 3 for _, t, _ in calls)
+        # Completed should contain 1, 2, 3 (order may vary due to threading)
+        completed_values = sorted(c for c, _, _ in calls)
+        assert completed_values == [1, 2, 3]
+
+    def test_parallel_executor_no_callback_still_works(self) -> None:
+        """Ensure the executor still works with debug=True and no callback."""
+        def double(item: int, _idx: int) -> int:
+            return item * 2
+
+        executor = ParallelExecutor(workers=2, debug=True)
+        results = executor.run_threaded(double, [5, 10])
+        assert sorted(results) == [10, 20]
+
+    def test_write_imageset_accepts_callback(self, tmp_path: Path) -> None:
+        """Verify write_imageset passes through progress_callback without error."""
+        calls: list[tuple[int, int, str]] = []
+
+        def callback(completed: int, total: int, msg: str) -> None:
+            calls.append((completed, total, msg))
+
+        # Create a tiny test image and a synthetic index
+        img_path = tmp_path / "cam-2024-01-15-120000.jpg"
+        Image.new("RGB", (10, 10)).save(str(img_path), "JPEG")
+
+        ts = datetime.datetime(2024, 1, 15, 12, 0, 0)
+        index = {"2024-01-15": {str(img_path): ts}}
+
+        out = tmp_path / "output"
+        out.mkdir()
+
+        io = ImageIO(workers=1)
+        io.write_imageset(index, str(out), resize=False, progress_callback=callback)
+
+        assert len(calls) == 1
+        assert calls[0] == (1, 1, "")

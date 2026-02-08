@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Cameras{% endblock %}
+{% block content %}
+<h1>Cameras</h1>
+
+<div class="btn-row" style="margin-bottom:1rem;">
+  <button hx-get="/cameras/add-form" hx-target="#camera-modal-body" hx-swap="innerHTML"
+          hx-on::after-request="openCameraModal()" class="btn-secondary">+ Add Camera</button>
+</div>
+
+<div id="camera-grid" class="grid">
+  {% for cam_id, cam in camera_config.items() %}
+  {% include "partials/camera_view.html" %}
+  {% endfor %}
+</div>
+
+{% if not camera_config %}
+<p id="no-cameras-msg">No cameras configured. Click "+ Add Camera" above or <a href="/config">edit config</a>.</p>
+{% endif %}
+
+<!-- Camera edit modal -->
+<div id="camera-modal" class="modal" style="display:none;" onclick="if(event.target===this)closeCameraModal()">
+  <div class="modal-content card">
+    <div class="modal-header">
+      <span></span>
+      <button onclick="closeCameraModal()" class="btn-secondary">&times;</button>
+    </div>
+    <div id="camera-modal-body"></div>
+  </div>
+</div>
+{% endblock %}

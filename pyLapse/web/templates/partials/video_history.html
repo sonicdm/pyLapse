@@ -1,0 +1,48 @@
+{% if message is defined and message %}
+<p class="success" style="margin-bottom:0.5rem;">{{ message }}</p>
+{% endif %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem;">
+  <span>{% if history_total is defined %}<span class="muted" style="font-size:0.85rem;">{{ history_total }} total</span>{% endif %}</span>
+  <div class="page-size-chips" style="display:flex; gap:0.25rem; align-items:center;">
+    <span class="muted" style="font-size:0.8rem;">Show:</span>
+    {% set lim = history_limit|default(10) %}
+    {% for n in [10, 25, 50, 100] %}
+    <button type="button" class="preset-chip{% if lim == n %} active{% endif %}"
+            hx-get="/api/video-history?limit={{ n }}"
+            hx-target="#video-history"
+            hx-swap="innerHTML">{{ n }}</button>
+    {% endfor %}
+  </div>
+</div>
+
+{% if video_history %}
+<div class="video-grid">
+  {% for vid in video_history %}
+  <div class="card video-card">
+    <div class="camera-card-header">
+      <div>
+        <h3 style="margin:0;">{{ vid.get('name', 'Untitled') }}</h3>
+        <p class="muted" style="margin:0;">{{ vid.get('created_at', '')[:16] }} — {{ (vid.get('file_size', 0) / 1048576) | round(1) }} MB</p>
+      </div>
+      <button type="button" class="btn-small btn-danger"
+              hx-post="/videos/delete"
+              hx-vals='{"video_id": "{{ vid.id }}"}'
+              hx-target="#video-history"
+              hx-swap="innerHTML"
+              hx-confirm="Delete this video record?">Delete</button>
+    </div>
+    <details style="margin-top:0.5rem;">
+      <summary style="cursor:pointer; user-select:none;">Preview</summary>
+      <video controls preload="metadata" style="width:100%;max-height:400px;border-radius:var(--radius);margin-top:0.5rem;">
+        <source src="/videos/serve/{{ vid.id }}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+    </details>
+    <p class="muted" style="margin-top:0.25rem;"><code>{{ vid.get('output_path', '') }}</code></p>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">No videos rendered yet. Export a collection, then create a video.</p>
+{% endif %}

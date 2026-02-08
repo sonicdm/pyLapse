@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Videos{% endblock %}
+{% block content %}
+<h1>Videos</h1>
+
+<!-- Render form -->
+<section class="card">
+  <h2>Render Image Sequence</h2>
+  <form hx-post="/videos/render" hx-target="#render-result" hx-swap="innerHTML">
+    <div class="form-grid">
+      <label>Name <input type="text" name="name" id="video-name" value="{{ prefill_name or '' }}" placeholder="My Timelapse"></label>
+      <label class="full-width">Input Directory
+        <div class="input-with-browse">
+          <input type="text" name="input_dir" id="video-input-dir" value="{{ prefill_input_dir or '' }}" placeholder="/path/to/image/sequence" required>
+          <button type="button" class="btn-secondary" onclick="openFolderModal('video-input-dir')">Browse</button>
+        </div>
+      </label>
+      <label class="full-width">Output Path
+        <div class="input-with-browse">
+          <input type="text" name="output_path" id="video-output-path" value="{% if prefill_input_dir %}{{ prefill_input_dir }}.mp4{% endif %}" placeholder="/path/to/output.mp4" required>
+          <button type="button" class="btn-secondary" onclick="openFolderModal('video-output-path')">Browse</button>
+        </div>
+      </label>
+      <label>FPS <input type="number" name="fps" value="24" min="1" max="120"></label>
+      <label>Pattern <input type="text" name="pattern" value="*.jpg"></label>
+      <label>Codec
+        <select name="codec">
+          <option value="libx264" selected>H.264 (libx264)</option>
+          <option value="libx265">H.265 (libx265)</option>
+          <option value="mpeg4">MPEG-4</option>
+        </select>
+      </label>
+    </div>
+    <button type="submit">Start Render</button>
+  </form>
+</section>
+
+<div id="render-result"></div>
+
+<!-- Video History -->
+<section class="card">
+  <h2>Video History</h2>
+  <div id="video-history">
+    {% include "partials/video_history.html" %}
+  </div>
+</section>
+{% endblock %}

@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _IMAGE_URL_RE = re.compile(
-    r"https?://[^\s\"']+\.(?:png|jpe?g|gif|svg|bmp|tiff?)(?:\?[^\s]*)?$",
+    r"https?://[^\s\"']+",
     re.IGNORECASE,
 )
 
 
 def is_image_url(url: str) -> bool:
-    """Return True if *url* looks like a direct link to an image file."""
+    """Return True if *url* looks like an HTTP(S) image endpoint."""
     return _IMAGE_URL_RE.match(url) is not None
 
 
@@ -104,12 +104,16 @@ class ParallelExecutor:
         func: Callable[..., Any],
         items: Sequence[Any],
         *args: Any,
+        progress_callback: Callable[[int, int, str], None] | None = None,
         **kwargs: Any,
     ) -> list[Any]:
         """Execute *func* for each item using a thread pool.
 
         *func* is called as ``func(item, index, *args, **kwargs)`` for every
         ``(index, item)`` pair in *items*.
+
+        If *progress_callback* is provided it is called as
+        ``progress_callback(completed, total, "")`` after each item finishes.
         """
         return self._run(
             TracedThreadPoolExecutor,
@@ -117,6 +121,7 @@ class ParallelExecutor:
             func,
             items,
             *args,
+            progress_callback=progress_callback,
             **kwargs,
         )
 
@@ -125,11 +130,15 @@ class ParallelExecutor:
         func: Callable[..., Any],
         items: Sequence[Any],
         *args: Any,
+        progress_callback: Callable[[int, int, str], None] | None = None,
         **kwargs: Any,
     ) -> list[Any]:
         """Execute *func* for each item using a process pool.
 
         *func* is called as ``func(item, index, *args, **kwargs)``.
+
+        If *progress_callback* is provided it is called as
+        ``progress_callback(completed, total, "")`` after each item finishes.
         """
         return self._run(
             TracedProcessPoolExecutor,
@@ -137,6 +146,7 @@ class ParallelExecutor:
             func,
             items,
             *args,
+            progress_callback=progress_callback,
             **kwargs,
         )
 
@@ -149,16 +159,24 @@ class ParallelExecutor:
         func: Callable[..., Any],
         items: Sequence[Any],
         *args: Any,
+        progress_callback: Callable[[int, int, str], None] | None = None,
         **kwargs: Any,
     ) -> list[Any]:
+        total = len(items)
         results: list[Any] = []
+        completed = 0
         with executor_cls(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(func, item, idx, *args, **kwargs)
                 for idx, item in enumerate(items)
             ]
 
-            if self.debug:
+            if progress_callback:
+                for future in as_completed(futures, timeout=300):
+                    results.append(future.result())
+                    completed += 1
+                    progress_callback(completed, total, "")
+            elif self.debug:
                 for future in as_completed(futures, timeout=300):
                     result = future.result()
                     logger.debug(result)
@@ -166,7 +184,7 @@ class ParallelExecutor:
             else:
                 pbar = tqdm.tqdm(
                     as_completed(futures),
-                    total=len(futures),
+                    total=total,
                     unit=f" {self.unit}",
                     unit_scale=True,
                     leave=True,

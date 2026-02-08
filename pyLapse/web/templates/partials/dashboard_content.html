@@ -1,0 +1,178 @@
+<!-- Status bar -->
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
+  <a href="/config" class="card stat-link" style="text-align:center; padding:0.75rem;">
+    <p class="muted" style="margin:0; font-size:0.8rem;">Scheduler</p>
+    <span class="badge {{ 'badge-ok' if scheduler_running else 'badge-err' }}" style="font-size:1rem;">{{ "Running" if scheduler_running else "Stopped" }}</span>
+  </a>
+  <a href="/cameras" class="card stat-link" style="text-align:center; padding:0.75rem;">
+    <p class="muted" style="margin:0; font-size:0.8rem;">Cameras</p>
+    <span style="font-size:1.4rem; font-weight:700;">{{ camera_count }}</span>
+  </a>
+  <a href="/config" class="card stat-link" style="text-align:center; padding:0.75rem;">
+    <p class="muted" style="margin:0; font-size:0.8rem;">Jobs</p>
+    <span style="font-size:1.4rem; font-weight:700;">{{ jobs|length }}</span>
+  </a>
+  <a href="/exports" class="card stat-link" style="text-align:center; padding:0.75rem;">
+    <p class="muted" style="margin:0; font-size:0.8rem;">Exports</p>
+    <span style="font-size:1.4rem; font-weight:700;">{{ export_count }}</span>
+  </a>
+  <a href="/videos" class="card stat-link" style="text-align:center; padding:0.75rem;">
+    <p class="muted" style="margin:0; font-size:0.8rem;">Videos</p>
+    <span style="font-size:1.4rem; font-weight:700;">{{ video_count }}</span>
+  </a>
+</div>
+
+<!-- Camera cards with thumbnails -->
+<section class="card">
+  <div class="camera-card-header">
+    <h2 style="margin:0;">Cameras</h2>
+    <a href="/cameras" class="btn-small" style="text-decoration:none;">Manage</a>
+  </div>
+  {% if camera_status %}
+  <div class="grid" style="margin-top:0.75rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+    {% for cam_id, cam in camera_status.items() %}
+    <div class="camera-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+        <strong>{{ cam.name }}</strong>
+        {% if not cam.enabled %}
+        <span class="badge badge-err" style="font-size:0.75rem;">Disabled</span>
+        {% elif cam.last_capture and cam.last_capture.success %}
+        <span class="badge badge-ok" style="font-size:0.75rem;">OK</span>
+        {% elif cam.last_capture and not cam.last_capture.success %}
+        <span class="badge badge-err" style="font-size:0.75rem;">Error</span>
+        {% elif cam.has_thumbnail %}
+        <span class="badge badge-ok" style="font-size:0.75rem;">OK</span>
+        {% else %}
+        <span class="badge" style="font-size:0.75rem;">Waiting</span>
+        {% endif %}
+      </div>
+      {% if cam.has_thumbnail %}
+      <div class="cam-thumb-wrap" id="thumb-wrap-{{ cam_id }}">
+        <button type="button" class="dismiss-btn" onclick="hideThumb('{{ cam_id }}')" title="Hide preview">&times;</button>
+        <img src="/api/cameras/{{ cam_id }}/thumbnail?_t={{ now_ts }}" alt="{{ cam.name }}"
+             style="width:100%; border-radius:4px; cursor:pointer;"
+             onclick="openImageModal(this.src, '{{ cam.name }} — Latest Capture')"
+             title="Click to enlarge">
+      </div>
+      <button type="button" class="btn-small btn-secondary" id="thumb-show-{{ cam_id }}" style="display:none; margin-bottom:0.5rem;" onclick="showThumb('{{ cam_id }}')">Show Preview</button>
+      {% else %}
+      <div style="width:100%; height:80px; background:var(--bg); border-radius:4px; display:flex; align-items:center; justify-content:center; margin-bottom:0.5rem;">
+        <span class="muted">No image yet</span>
+      </div>
+      {% endif %}
+      <p class="muted" style="margin:0; font-size:0.8rem;">
+        {{ cam.schedule_count }} schedule{{ "s" if cam.schedule_count != 1 else "" }}
+        {% if cam.last_capture %}
+         | Last: {{ cam.last_capture.time_short }}
+        {% endif %}
+      </p>
+      <div class="btn-row" style="margin-top:0.4rem;">
+        <button hx-post="/cameras/{{ cam_id }}/grab" hx-target="#dash-grab-{{ cam_id }}" hx-swap="innerHTML" class="btn-small btn-secondary">Grab Now</button>
+      </div>
+      <div id="dash-grab-{{ cam_id }}"></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No cameras configured. <a href="/cameras">Add one</a>.</p>
+  {% endif %}
+</section>
+
+<!-- Task Queue -->
+{% set active_tasks = tasks | selectattr('status', 'in', ['pending', 'running']) | list %}
+{% set done_tasks = tasks | selectattr('status', 'in', ['completed', 'failed']) | list %}
+{% if active_tasks or done_tasks %}
+<section class="card">
+  <h2>Task Queue</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Status</th><th>Progress</th><th></th></tr></thead>
+    <tbody>
+      {% for t in active_tasks %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td><span class="badge">{{ t.status }}</span></td>
+        <td>
+          <div class="progress-outer" style="display:inline-block;width:100px;vertical-align:middle;">
+            <div class="progress-inner" style="width:{{ t.progress|round(1) }}%;"></div>
+          </div>
+          {{ t.progress|round(0)|int }}%
+        </td>
+        <td></td>
+      </tr>
+      {% endfor %}
+      {% for t in done_tasks %}
+      <tr>
+        <td class="muted">{{ t.name }}</td>
+        <td>
+          <span class="badge {% if t.status == 'completed' %}badge-ok{% elif t.status == 'failed' %}badge-err{% endif %}">{{ t.status }}</span>
+        </td>
+        <td class="muted">{{ t.progress|round(0)|int }}%</td>
+        <td><button class="btn-small btn-secondary" onclick="this.closest('tr').remove()" style="padding:0.1rem 0.4rem;font-size:0.75rem;">dismiss</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<!-- Upcoming Captures -->
+{% if jobs %}
+<section class="card">
+  <h2>Upcoming Captures</h2>
+  <table>
+    <thead><tr><th>Camera</th><th>Next Run</th></tr></thead>
+    <tbody>
+      {% for job in jobs[:10] %}
+      <tr>
+        <td>{{ job.camera_name or job.id }}</td>
+        <td>{{ job.next_run_human }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<!-- Recent Captures -->
+<section class="card">
+  <h2>Recent Captures</h2>
+  {% if history %}
+  <table>
+    <thead><tr><th>Time</th><th>Camera</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.time_short }}</td>
+        <td>{{ h.camera_name }}</td>
+        <td><span class="badge {{ 'badge-ok' if h.success else 'badge-err' }}">{{ "OK" if h.success else (h.error or "Failed")[:30] }}</span></td>
+        <td>
+          {% if h.success and h.file_path %}
+          <button class="btn-small btn-secondary" onclick="openImageModal('/api/cameras/{{ h.camera_id }}/thumbnail?_t={{ loop.index }}', '{{ h.camera_name }} — {{ h.time_short }}')">View</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No captures yet.</p>
+  {% endif %}
+</section>
+
+<!-- Disk Usage -->
+{% if disk_info %}
+<section class="card">
+  <h2>Disk Usage</h2>
+  {% for d in disk_info %}
+  <div style="margin-bottom:0.75rem;">
+    <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+      <span>{{ d.camera }} — <code>{{ d.path }}</code></span>
+      <span>{{ d.used }} / {{ d.total }} ({{ d.percent }}%)</span>
+    </div>
+    <div class="progress-outer" style="margin-top:0.25rem;">
+      <div class="progress-inner" style="width:{{ d.percent }}%;"></div>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}

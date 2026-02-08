@@ -1,0 +1,54 @@
+<div class="schedule-row{% if sched.get('enabled') == false %} disabled{% endif %}" id="sched-row-{{ cam_id }}-{{ idx }}">
+  <input type="hidden" name="sched_ids[{{ cam_id }}]" value="{{ idx }}">
+  <!-- Schedule type: cron or interval -->
+  <input type="hidden" class="sched-type" name="sched[{{ cam_id }}][{{ idx }}][type]" value="{{ sched.get('type', 'cron') }}">
+  <input type="hidden" class="sched-start-date" name="sched[{{ cam_id }}][{{ idx }}][start_date]" value="{{ sched.get('start_date', '') }}">
+  <!-- Hidden cron fields — computed from the picker -->
+  <input type="hidden" class="sched-hour" name="sched[{{ cam_id }}][{{ idx }}][hour]" value="{{ sched.get('hour', '*') }}">
+  <input type="hidden" class="sched-minute" name="sched[{{ cam_id }}][{{ idx }}][minute]" value="{{ sched.get('minute', '*') }}">
+  <input type="hidden" class="sched-second" name="sched[{{ cam_id }}][{{ idx }}][second]" value="{{ sched.get('second', '0') }}">
+  <!-- Interval fields (used when type=interval) -->
+  <input type="hidden" class="sched-interval-amount" name="sched[{{ cam_id }}][{{ idx }}][interval_amount]" value="{{ sched.get('interval_amount', '') }}">
+  <input type="hidden" class="sched-interval-unit" name="sched[{{ cam_id }}][{{ idx }}][interval_unit]" value="{{ sched.get('interval_unit', 'minutes') }}">
+
+  <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+    <label class="toggle" title="Enable/disable schedule" style="margin-bottom:0.25rem;">
+      <input type="checkbox" name="sched[{{ cam_id }}][{{ idx }}][enabled]" value="true"
+             {% if sched.get('enabled', true) %}checked{% endif %}
+             onchange="this.closest('.schedule-row').classList.toggle('disabled', !this.checked)">
+      <span class="toggle-track"></span>
+    </label>
+    <label style="flex:1;min-width:100px;">ID
+      <input type="text" name="sched[{{ cam_id }}][{{ idx }}][id]" value="{{ sched.get('id', '') }}" placeholder="schedule_id">
+    </label>
+    <label style="flex:0 0 60px;">Every
+      <input type="number" class="sched-amount" value="1" min="1" max="360" style="width:100%;" onchange="schedUpdate(this)" oninput="schedUpdate(this)">
+    </label>
+    <label style="flex:0 0 90px;">Unit
+      <select class="sched-unit" onchange="schedUpdate(this)">
+        <option value="seconds">seconds</option>
+        <option value="minutes" selected>minutes</option>
+        <option value="hours">hours</option>
+      </select>
+    </label>
+    <label style="flex:1; min-width:80px;">From
+      <select class="sched-from" onchange="schedUpdate(this)">
+        <option value="now">Now</option>
+        <option value="0">12 AM</option>
+        {% for h in range(1, 24) %}
+        <option value="{{ h }}">{{ h if h <= 12 else h - 12 }} {{ "AM" if h < 12 else "PM" }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label style="flex:1; min-width:80px;">To
+      <select class="sched-to" onchange="schedUpdate(this)">
+        <option value="0">All day</option>
+        {% for h in range(1, 24) %}
+        <option value="{{ h }}">{{ h if h <= 12 else h - 12 }} {{ "AM" if h < 12 else "PM" }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="button" class="btn-danger btn-small" onclick="removeSchedule(this)" style="margin-bottom:0.25rem;">&times;</button>
+  </div>
+  <p class="muted sched-summary" style="margin:0.25rem 0 0 0;"></p>
+</div>

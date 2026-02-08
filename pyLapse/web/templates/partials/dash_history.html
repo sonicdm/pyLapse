@@ -1,0 +1,38 @@
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+  <h2 style="margin:0;">Recent Captures{% if history_total is defined %} <span class="muted" style="font-size:0.85rem;">({{ history_total }} total)</span>{% endif %}</h2>
+  <div class="page-size-chips" style="display:flex; gap:0.25rem; align-items:center;">
+    <span class="muted" style="font-size:0.8rem;">Show:</span>
+    {% set lim = history_limit|default(10) %}
+    {% for n in [10, 25, 50, 100] %}
+    <button type="button" class="preset-chip{% if lim == n %} active{% endif %}"
+            hx-get="/api/dash/history?limit={{ n }}"
+            hx-target="#dash-history"
+            hx-swap="innerHTML">{{ n }}</button>
+    {% endfor %}
+  </div>
+</div>
+{% if history %}
+<table>
+  <thead><tr><th>Time</th><th>Camera</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for h in history %}
+    <tr>
+      <td>{{ h.time_short }}</td>
+      <td>{{ h.camera_name }}</td>
+      <td><span class="badge {{ 'badge-ok' if h.success else 'badge-err' }}">{{ "OK" if h.success else (h.error or "Failed")[:30] }}</span></td>
+      <td>
+        {% if h.success and h.file_path %}
+        <button class="btn-small btn-secondary" onclick="openImageModal('/api/cameras/{{ h.camera_id }}/thumbnail?_t={{ loop.index }}', '{{ h.camera_name }} — {{ h.time_short }}')">View</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted" style="margin:0.5rem 0;">No captures yet.</p>
+{% endif %}
+<script>(function() {
+  var el = document.getElementById('dash-history');
+  if (el) { el.setAttribute('hx-get', '/api/dash/history?limit={{ history_limit|default(10) }}'); htmx.process(el); }
+})();</script>

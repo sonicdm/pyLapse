@@ -1,0 +1,52 @@
+<div class="camera-card-header">
+  <h2 style="margin:0;">Cameras</h2>
+  <a href="/cameras" class="btn-small" style="text-decoration:none;">Manage</a>
+</div>
+{% if camera_status %}
+<div class="grid" style="margin-top:0.75rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+  {% for cam_id, cam in camera_status.items() %}
+  <div class="camera-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+      <strong>{{ cam.name }}</strong>
+      {% if not cam.enabled %}
+      <span class="badge badge-err" style="font-size:0.75rem;">Disabled</span>
+      {% elif cam.last_capture and cam.last_capture.success %}
+      <span class="badge badge-ok" style="font-size:0.75rem;">OK</span>
+      {% elif cam.last_capture and not cam.last_capture.success %}
+      <span class="badge badge-err" style="font-size:0.75rem;">Error</span>
+      {% elif cam.has_thumbnail %}
+      <span class="badge badge-ok" style="font-size:0.75rem;">OK</span>
+      {% else %}
+      <span class="badge" style="font-size:0.75rem;">Waiting</span>
+      {% endif %}
+    </div>
+    {% if cam.has_thumbnail %}
+    <div class="cam-thumb-wrap" id="thumb-wrap-{{ cam_id }}">
+      <button type="button" class="dismiss-btn" onclick="hideThumb('{{ cam_id }}')" title="Hide preview">&times;</button>
+      <img src="/api/cameras/{{ cam_id }}/thumbnail?_t={{ now_ts }}" alt="{{ cam.name }}"
+           style="width:100%; border-radius:4px; cursor:pointer;"
+           onclick="openImageModal(this.src, '{{ cam.name }} — Latest Capture')"
+           title="Click to enlarge">
+    </div>
+    <button type="button" class="btn-small btn-secondary" id="thumb-show-{{ cam_id }}" style="display:none; margin-bottom:0.5rem;" onclick="showThumb('{{ cam_id }}')">Show Preview</button>
+    {% else %}
+    <div style="width:100%; height:80px; background:var(--bg); border-radius:4px; display:flex; align-items:center; justify-content:center; margin-bottom:0.5rem;">
+      <span class="muted">No image yet</span>
+    </div>
+    {% endif %}
+    <p class="muted" style="margin:0; font-size:0.8rem;">
+      {{ cam.schedule_count }} schedule{{ "s" if cam.schedule_count != 1 else "" }}
+      {% if cam.last_capture %}
+       | Last: {{ cam.last_capture.time_short }}
+      {% endif %}
+    </p>
+    <div class="btn-row" style="margin-top:0.4rem;">
+      <button hx-post="/cameras/{{ cam_id }}/grab" hx-target="#dash-grab-{{ cam_id }}" hx-swap="innerHTML" class="btn-small btn-secondary">Grab Now</button>
+    </div>
+    <div id="dash-grab-{{ cam_id }}"></div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">No cameras configured. <a href="/cameras">Add one</a>.</p>
+{% endif %}

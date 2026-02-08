@@ -14,7 +14,7 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from tqdm import tqdm
 
@@ -50,6 +50,7 @@ def render_sequence_to_video(
     pixel_fmt: str = "yuv420p",
     ffmpeg_path: Optional[str] = None,
     progress: bool = True,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> str:
     """Render a directory of ordered images to a single video file.
 
@@ -138,8 +139,8 @@ def render_sequence_to_video(
 
         logger.debug("Running: %s", " ".join(cmd))
 
-        if progress:
-            _run_ffmpeg_with_progress(cmd, total_frames)
+        if progress or progress_callback:
+            _run_ffmpeg_with_progress(cmd, total_frames, progress_callback)
         else:
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
@@ -159,11 +160,16 @@ def render_sequence_to_video(
 _FRAME_RE = re.compile(r"^frame=(\d+)")
 
 
-def _run_ffmpeg_with_progress(cmd: list[str], total_frames: int) -> None:
-    """Run an ffmpeg command while displaying a tqdm progress bar.
+def _run_ffmpeg_with_progress(
+    cmd: list[str],
+    total_frames: int,
+    progress_callback: Callable[[int, int, str], None] | None = None,
+) -> None:
+    """Run an ffmpeg command while tracking progress.
 
-    Parses ``frame=N`` lines from ffmpeg's ``-progress pipe:1`` output
-    and updates the bar accordingly.  A background thread drains stderr
+    Parses ``frame=N`` lines from ffmpeg's ``-progress pipe:1`` output.
+    When *progress_callback* is provided it is called instead of (or in
+    addition to) the tqdm progress bar.  A background thread drains stderr
     to prevent the pipe buffer from filling up and deadlocking ffmpeg.
     """
     proc = subprocess.Popen(
@@ -184,18 +190,22 @@ def _run_ffmpeg_with_progress(cmd: list[str], total_frames: int) -> None:
     drain_thread = threading.Thread(target=_drain_stderr, daemon=True)
     drain_thread.start()
 
-    bar = tqdm(total=total_frames, unit="frame", desc="Rendering")
+    bar = None if progress_callback else tqdm(total=total_frames, unit="frame", desc="Rendering")
     try:
         assert proc.stdout is not None
         for line in proc.stdout:
             m = _FRAME_RE.match(line.strip())
             if m:
                 frame = int(m.group(1))
-                bar.update(frame - bar.n)  # jump to current frame
+                if progress_callback:
+                    progress_callback(frame, total_frames, "Encoding")
+                if bar is not None:
+                    bar.update(frame - bar.n)
         proc.wait()
         drain_thread.join(timeout=5)
     finally:
-        bar.close()
+        if bar is not None:
+            bar.close()
 
     if proc.returncode != 0:
         raise RuntimeError(

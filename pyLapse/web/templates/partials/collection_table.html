@@ -1,0 +1,26 @@
+<section class="card">
+  <div class="camera-card-header">
+    <div>
+      {% if name %}<h2>{{ name }}</h2>{% endif %}
+      <p class="muted" style="margin:0;">{{ path }}</p>
+    </div>
+    <button type="button" class="btn-secondary btn-small save-coll-btn"
+            data-path="{{ path }}" data-date-source="{{ date_source }}" data-name="{{ name or '' }}">Save Collection</button>
+  </div>
+
+  {% include "partials/collection_stats.html" %}
+
+  {% if stats.day_counts %}
+  <details>
+    <summary>Day-by-Day Breakdown</summary>
+    <table>
+      <thead><tr><th>Day</th><th>Images</th></tr></thead>
+      <tbody>
+        {% for day, count in stats.day_counts.items() %}
+        <tr><td>{{ day }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+</section>

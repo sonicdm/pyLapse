@@ -7,7 +7,7 @@
       "prefix": "Camera1 ",
       "schedules": [
         { "id": "cam1_day", "hour": "6-20", "minute": "*" },
-        { "id": "cam1_night", "hour": "21-24,0-5", "minute": "*/15" }
+        { "id": "cam1_night", "hour": "21-23,0-5", "minute": "*/15" }
       ]
     }
   }

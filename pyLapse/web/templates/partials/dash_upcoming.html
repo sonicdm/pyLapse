@@ -1,0 +1,16 @@
+{% if jobs %}
+<h2>Upcoming Captures</h2>
+<table>
+  <thead><tr><th>Camera</th><th>Next Run</th></tr></thead>
+  <tbody>
+    {% for job in jobs[:10] %}
+    <tr>
+      <td>{{ job.camera_name or job.id }}</td>
+      <td>{{ job.next_run_human }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted" style="margin:0.5rem 0;">No scheduled captures.</p>
+{% endif %}

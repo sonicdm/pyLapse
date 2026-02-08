@@ -160,10 +160,11 @@ def find_nearest_dt(
     fuzzy: int = 5,
 ) -> Optional[datetime.datetime]:
     """Find the datetime in *dtlist* closest to *target_dt* within *fuzzy* minutes."""
-    candidates = [x for x in dtlist if (x - target_dt).seconds <= fuzzy * 60]
+    max_delta = datetime.timedelta(minutes=fuzzy)
+    candidates = [x for x in dtlist if abs(x - target_dt) <= max_delta]
     if not candidates:
         return None
-    return min(candidates, key=lambda x: x - target_dt)
+    return min(candidates, key=lambda x: abs(x - target_dt))
 
 
 # ---------------------------------------------------------------------------

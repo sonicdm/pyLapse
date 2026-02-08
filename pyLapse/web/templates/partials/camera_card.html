@@ -1,0 +1,51 @@
+<div class="camera-card{% if cam.get('enabled') == false %} disabled{% endif %}">
+  <input type="hidden" name="cam_ids" value="{{ cam_id }}">
+  <div class="camera-card-header">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <label class="toggle" title="Enable/disable camera">
+        <input type="checkbox" name="cam[{{ cam_id }}][enabled]" value="true"
+               {% if cam.get('enabled', true) %}checked{% endif %}
+               onchange="this.closest('.camera-card').classList.toggle('disabled', !this.checked)">
+        <span class="toggle-track"></span>
+      </label>
+      <h3 style="margin:0;">{{ cam.get('name', cam_id) or cam_id }}</h3>
+    </div>
+    <button type="button" class="btn-danger btn-small" onclick="removeCamera(this)">&times; Remove</button>
+  </div>
+
+  <div class="form-grid">
+    <label>Camera ID
+      <input type="text" value="{{ cam_id }}" disabled>
+    </label>
+    <label>Name
+      <input type="text" name="cam[{{ cam_id }}][name]" value="{{ cam.get('name', '') }}" placeholder="Camera name">
+    </label>
+    <label class="full-width">URL
+      <input type="text" name="cam[{{ cam_id }}][url]" value="{{ cam.get('url', '') }}" placeholder="http://192.168.1.100/photo.jpg" required>
+    </label>
+    <label class="full-width">Output Directory
+      <div class="input-with-browse">
+        <input type="text" name="cam[{{ cam_id }}][output_dir]" id="cam-outdir-{{ cam_id }}" value="{{ cam.get('output_dir', '') }}" placeholder="/path/to/output">
+        <button type="button" class="btn-secondary" onclick="openFolderModal('cam-outdir-{{ cam_id }}')">Browse</button>
+      </div>
+    </label>
+    <label>Filename Prefix
+      <input type="text" name="cam[{{ cam_id }}][prefix]" value="{{ cam.get('prefix', '') }}" placeholder="e.g. Camera1 ">
+    </label>
+  </div>
+
+  <h4 style="margin-top:0.75rem;">Schedules</h4>
+  <div id="schedules-{{ cam_id }}">
+    {% for sched in cam.get('schedules', []) %}
+    {% set idx = loop.index0 %}
+    {% include "partials/schedule_row.html" %}
+    {% endfor %}
+  </div>
+  <button type="button"
+          class="btn-secondary btn-small"
+          style="margin-top:0.4rem;"
+          hx-post="/config/add-schedule"
+          hx-vals='{"cam_id": "{{ cam_id }}"}'
+          hx-target="#schedules-{{ cam_id }}"
+          hx-swap="beforeend">+ Add Schedule</button>
+</div>

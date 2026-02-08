@@ -21,7 +21,7 @@ CRON_ARG_NAMES: tuple[str, ...] = (
 WRITER_OPTIONS: tuple[str, ...] = (
     "resize", "quality", "optimize", "resolution", "drawtimestamp",
     "timestampformat", "timestampfont", "timestampfontsize", "timestampcolor",
-    "timestamppos", "prefix", "zeropadding",
+    "timestamppos", "prefix", "zeropadding", "progress_callback",
 )
 
 

@@ -1,0 +1,16 @@
+<div class="inline-result">
+  <button type="button" class="dismiss-btn" onclick="this.parentElement.remove()">&times;</button>
+  <p class="success" style="margin-bottom:0.5rem;">Video rendered — <code>{{ video.get('output_path', '') }}</code> ({{ (video.get('file_size', 0) / 1048576) | round(1) }} MB)</p>
+  {% if video.get('id') %}
+  <video controls preload="metadata" style="width:100%;max-height:500px;border-radius:var(--radius);margin-top:0.5rem;">
+    <source src="/videos/serve/{{ video.id }}" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  {% endif %}
+</div>
+
+{% if video_history is defined %}
+<div id="video-history" hx-swap-oob="innerHTML">
+  {% include "partials/video_history.html" %}
+</div>
+{% endif %}

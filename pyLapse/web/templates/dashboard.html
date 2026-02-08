@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<!-- Stats bar — polls every 30s -->
+<div id="dash-stats" hx-get="/api/dash/stats" hx-trigger="every 30s" hx-swap="innerHTML">
+  {% include "partials/dash_stats.html" %}
+</div>
+
+<!-- Camera cards — polls every 30s -->
+<section id="dash-cameras" class="card" hx-get="/api/dash/cameras" hx-trigger="every 30s" hx-swap="innerHTML">
+  {% include "partials/dash_cameras.html" %}
+</section>
+
+<!-- Task queue — polls every 3s (fast for progress bars) -->
+<section id="dash-tasks" class="card" hx-get="/api/dash/tasks" hx-trigger="every 3s" hx-swap="innerHTML">
+  {% include "partials/dash_tasks.html" %}
+</section>
+
+<!-- Upcoming captures — polls every 10s -->
+<section id="dash-upcoming" class="card" hx-get="/api/dash/upcoming" hx-trigger="every 10s" hx-swap="innerHTML">
+  {% include "partials/dash_upcoming.html" %}
+</section>
+
+<!-- Recent captures — polls every 10s -->
+<section id="dash-history" class="card" hx-get="/api/dash/history" hx-trigger="every 10s" hx-swap="innerHTML">
+  {% include "partials/dash_history.html" %}
+</section>
+
+<!-- Disk usage — polls every 60s (slow-changing) -->
+<section id="dash-disk" class="card" hx-get="/api/dash/disk" hx-trigger="every 60s" hx-swap="innerHTML">
+  {% include "partials/dash_disk.html" %}
+</section>
+
+<!-- Image viewer modal -->
+<div id="image-modal" class="modal" style="display:none;" onclick="if(event.target===this)closeModal('image-modal')">
+  <div class="modal-content card">
+    <div class="modal-header">
+      <h3 id="image-modal-title" style="margin:0;"></h3>
+      <button onclick="closeModal('image-modal')" class="btn-secondary">&times;</button>
+    </div>
+    <div style="overflow:auto; max-height:75vh;">
+      <img id="image-modal-img" src="" alt="" style="width:100%; border-radius:4px;">
+    </div>
+  </div>
+</div>
+
+<script>
+function openImageModal(src, title) {
+  document.getElementById('image-modal-img').src = src;
+  document.getElementById('image-modal-title').textContent = title || 'Image';
+  document.getElementById('image-modal').style.display = 'flex';
+}
+</script>
+{% endblock %}

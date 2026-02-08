@@ -1,0 +1,155 @@
+<h3>{% if is_new %}Add Export{% else %}Edit: {{ exp.get('name', exp_id) }}{% endif %}</h3>
+<form hx-post="{% if is_new %}/exports/add{% else %}/exports/{{ coll_id }}/{{ exp_id }}/save{% endif %}"
+      hx-target="#export-grid"
+      hx-swap="innerHTML"
+      hx-on::after-request="closeExportModal()">
+  <input type="hidden" name="coll_id" value="{{ coll_id }}">
+  <input type="hidden" name="date_source" value="{{ exp.get('date_source', 'filename') }}">
+  <div class="form-grid">
+    <label>Name
+      <input type="text" name="name" value="{{ exp.get('name', '') }}" placeholder="Export name" required>
+    </label>
+    <label class="full-width">Input Directory
+      <div class="input-with-browse">
+        <input type="text" name="input_dir" id="exp-edit-indir" value="{{ exp.get('input_dir', '') }}" placeholder="/path/to/images" required>
+        <button type="button" class="btn-secondary" onclick="openFolderModal('exp-edit-indir')">Browse</button>
+      </div>
+    </label>
+    <label class="full-width">Output Directory
+      <div class="input-with-browse">
+        <input type="text" name="output_dir" id="exp-edit-outdir" value="{{ exp.get('output_dir', '') }}" placeholder="/path/to/export" required>
+        <button type="button" class="btn-secondary" onclick="openFolderModal('exp-edit-outdir')">Browse</button>
+      </div>
+    </label>
+  </div>
+
+  <!-- Time Filter (reusable schedule picker) -->
+  <h4 style="margin:0.75rem 0 0.5rem; color:var(--muted);">Time Filter</h4>
+  <div id="exp-schedule">
+    <div class="schedule-row" style="padding:0.5rem 0; border-bottom:1px solid var(--border);">
+      <div style="display:flex; gap:0.4rem; align-items:flex-end; flex-wrap:wrap;">
+        <label style="flex:0 0 60px;">Every
+          <input type="number" class="sched-amount" value="1" min="1" max="360" style="width:100%;" onchange="schedUpdate(this)" oninput="schedUpdate(this)">
+        </label>
+        <label style="flex:0 0 90px;">Unit
+          <select class="sched-unit" onchange="schedUpdate(this)">
+            <option value="seconds">seconds</option>
+            <option value="minutes">minutes</option>
+            <option value="hours">hours</option>
+          </select>
+        </label>
+        <label style="flex:1; min-width:80px;">From
+          <select class="sched-from" onchange="schedUpdate(this)">
+            <option value="now">Start</option>
+            <option value="0">12 AM</option>
+            {% for h in range(1, 24) %}
+            <option value="{{ h }}">{{ h if h <= 12 else h - 12 }} {{ "AM" if h < 12 else "PM" }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="flex:1; min-width:80px;">To
+          <select class="sched-to" onchange="schedUpdate(this)">
+            <option value="0">All day</option>
+            {% for h in range(1, 24) %}
+            <option value="{{ h }}">{{ h if h <= 12 else h - 12 }} {{ "AM" if h < 12 else "PM" }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <input type="hidden" class="sched-hour" name="hour" value="{{ exp.get('hour', '*') }}">
+      <input type="hidden" class="sched-minute" name="minute" value="{{ exp.get('minute', '*') }}">
+      <input type="hidden" class="sched-second" name="second" value="{{ exp.get('second', '0') }}">
+      <p class="muted sched-summary" style="margin:0.15rem 0 0; font-size:0.8rem;"></p>
+    </div>
+  </div>
+
+  <!-- Timestamp Settings -->
+  <details{% if exp.get('drawtimestamp') %} open{% endif %}>
+    <summary>Timestamp Settings</summary>
+    <div class="form-grid">
+      <label class="full-width">
+        <input type="checkbox" name="drawtimestamp" value="true" {% if exp.get('drawtimestamp') %}checked{% endif %}> Draw timestamp overlay
+      </label>
+      <label>Format <input type="text" name="timestampformat" value="{{ exp.get('timestampformat', '%Y-%m-%d %I:%M:%S %p') }}"></label>
+      <label>Font
+        <select name="timestampfont">
+          <option value="">Default (Roboto)</option>
+          {% for f in fonts %}
+          <option value="{{ f.path }}" {% if exp.get('timestampfont') == f.path %}selected{% endif %}>{{ f.name }} ({{ f.source }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Font Size <input type="number" name="timestampfontsize" value="{{ exp.get('timestampfontsize', 36) }}" min="8" max="200"></label>
+      <label>Color R <input type="number" name="ts_r" value="{{ exp.get('ts_r', 255) }}" min="0" max="255"></label>
+      <label>Color G <input type="number" name="ts_g" value="{{ exp.get('ts_g', 255) }}" min="0" max="255"></label>
+      <label>Color B <input type="number" name="ts_b" value="{{ exp.get('ts_b', 255) }}" min="0" max="255"></label>
+      <label>Position X <input type="number" name="ts_x" value="{{ exp.get('ts_x', 0) }}" min="0"></label>
+      <label>Position Y <input type="number" name="ts_y" value="{{ exp.get('ts_y', 0) }}" min="0"></label>
+    </div>
+  </details>
+
+  <!-- Image Processing -->
+  <details{% if exp.get('resize') %} open{% endif %}>
+    <summary>Image Processing</summary>
+    <div class="form-grid">
+      <label class="full-width">
+        <input type="checkbox" name="resize" value="true" {% if exp.get('resize') %}checked{% endif %}> Resize images
+      </label>
+      <label>Width <input type="number" name="resolution_w" value="{{ exp.get('resolution_w', 1920) }}" min="1"></label>
+      <label>Height <input type="number" name="resolution_h" value="{{ exp.get('resolution_h', 1080) }}" min="1"></label>
+      <label>Quality <input type="range" name="quality" value="{{ exp.get('quality', 50) }}" min="1" max="100" oninput="this.nextElementSibling.textContent=this.value"><span>{{ exp.get('quality', 50) }}</span></label>
+      <label class="full-width">
+        <input type="checkbox" name="optimize" value="true" {% if exp.get('optimize') %}checked{% endif %}> Optimize (slower)
+      </label>
+      <label>Prefix <input type="text" name="prefix" value="{{ exp.get('prefix', '') }}"></label>
+      <label>Zero Padding <input type="number" name="zeropadding" value="{{ exp.get('zeropadding', 5) }}" min="1" max="10"></label>
+    </div>
+  </details>
+
+  <!-- Video Creation -->
+  <details{% if exp.get('create_video') %} open{% endif %}>
+    <summary>Video Creation</summary>
+    <div class="form-grid">
+      <label class="full-width">
+        <input type="checkbox" name="create_video" value="true" {% if exp.get('create_video') %}checked{% endif %}> Create video after export
+      </label>
+      <label>FPS <input type="number" name="video_fps" value="{{ exp.get('video_fps', 24) }}" min="1" max="120"></label>
+      <label>Pattern <input type="text" name="video_pattern" value="{{ exp.get('video_pattern', '*.jpg') }}"></label>
+      <label>Codec
+        <select name="video_codec">
+          <option value="libx264" {% if exp.get('video_codec', 'libx264') == 'libx264' %}selected{% endif %}>H.264 (libx264)</option>
+          <option value="libx265" {% if exp.get('video_codec') == 'libx265' %}selected{% endif %}>H.265 (libx265)</option>
+          <option value="mpeg4" {% if exp.get('video_codec') == 'mpeg4' %}selected{% endif %}>MPEG-4</option>
+        </select>
+      </label>
+      <label class="full-width">Output Path
+        <div class="input-with-browse">
+          <input type="text" name="video_output" id="exp-edit-vidout" value="{{ exp.get('video_output', '') }}" placeholder="Leave blank to auto-generate from output dir">
+          <button type="button" class="btn-secondary" onclick="openFolderModal('exp-edit-vidout')">Browse</button>
+        </div>
+      </label>
+      <p class="muted full-width" style="margin:0; font-size:0.8rem;">If blank, video saves as <code>&lt;output_dir&gt;.mp4</code> next to the export folder.</p>
+    </div>
+  </details>
+
+  <div class="btn-row" style="margin-top:0.75rem;">
+    <button type="submit">Save</button>
+    {% if not is_new %}
+    <button type="button" class="btn-danger"
+            hx-post="/exports/{{ coll_id }}/{{ exp_id }}/remove"
+            hx-target="#export-grid"
+            hx-swap="innerHTML"
+            hx-on::after-request="closeExportModal()"
+            hx-confirm="Delete this export config?">Delete</button>
+    {% endif %}
+    <button type="button" class="btn-secondary" onclick="closeExportModal()">Cancel</button>
+  </div>
+</form>
+<script>
+// Initialize the schedule row from its hidden hour/minute values
+(function() {
+  document.querySelectorAll('#exp-schedule .schedule-row').forEach(function(row) {
+    initSchedRow(row);
+  });
+})();
+</script>

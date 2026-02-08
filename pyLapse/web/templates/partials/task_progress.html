@@ -1,0 +1,39 @@
+<div class="card task-progress" id="task-{{ task.id }}">
+  <h3>{{ task.name }}</h3>
+  <div class="progress-bar">
+    <div class="progress-fill" id="pf-{{ task.id }}" style="width: {{ task.progress }}%"></div>
+  </div>
+  <p class="progress-text" id="pt-{{ task.id }}">{{ task.status }} &mdash; {{ task.progress|round(1) }}%{% if task.message %} &mdash; {{ task.message }}{% endif %}</p>
+</div>
+<script>
+(function() {
+  var tid = {{ task.id|tojson }};
+  var resultUrl = {{ (result_url or '')|tojson }};
+  var es = new EventSource('/api/tasks/' + tid + '/progress');
+  es.addEventListener('progress', function(e) {
+    var d = JSON.parse(e.data);
+    var fill = document.getElementById('pf-' + tid);
+    var text = document.getElementById('pt-' + tid);
+    if (fill) fill.style.width = d.progress.toFixed(1) + '%';
+    if (text) {
+      var msg = d.status + ' \u2014 ' + d.progress.toFixed(1) + '%';
+      if (d.current && d.total) msg += ' (' + d.current + '/' + d.total + ')';
+      if (d.message) msg += ' \u2014 ' + d.message;
+      text.textContent = msg;
+    }
+    if (d.status === 'completed' || d.status === 'failed') {
+      es.close();
+      if (d.status === 'completed' && resultUrl) {
+        fetch(resultUrl).then(function(r) { return r.text(); }).then(function(html) {
+          var el = document.getElementById('task-' + tid);
+          if (el) el.outerHTML = html;
+        });
+      } else if (d.status === 'failed') {
+        if (text) { text.textContent = 'Failed: ' + (d.error || 'Unknown error'); text.className = 'error'; }
+      } else if (d.status === 'completed') {
+        if (text) text.textContent = 'Completed';
+      }
+    }
+  });
+})();
+</script>

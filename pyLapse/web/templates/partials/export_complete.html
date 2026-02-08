@@ -1,0 +1,24 @@
+<div class="inline-result">
+  <button type="button" class="dismiss-btn" onclick="this.parentElement.remove()">&times;</button>
+  <p class="success" style="margin-bottom:0.5rem;">Export completed — {{ result.image_count }} images written to <code>{{ result.output_dir }}</code></p>
+  {% if result.get('video_created') %}
+  <p class="success" style="margin:0.25rem 0;">Video created: <code>{{ result.video_path }}</code>
+    {% if result.video_size %}({{ "%.1f"|format(result.video_size / 1048576) }} MB){% endif %}
+  </p>
+  {% elif result.get('video_error') %}
+  <p class="error" style="margin:0.25rem 0;">Video render failed: {{ result.video_error }}</p>
+  {% endif %}
+  {% if not result.get('video_created') %}
+  <div class="btn-row">
+    <button type="button" class="btn-small create-video-btn"
+            data-input-dir="{{ result.output_dir }}"
+            data-name="{{ result.get('name', '') }}">Create Video</button>
+  </div>
+  {% endif %}
+</div>
+
+{% if export_history is defined %}
+<div id="export-history" hx-swap-oob="innerHTML">
+  {% include "partials/export_history.html" %}
+</div>
+{% endif %}

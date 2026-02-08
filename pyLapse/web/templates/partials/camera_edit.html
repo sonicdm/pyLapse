@@ -1,0 +1,144 @@
+<h3>{% if is_new %}Add Camera{% else %}Edit: {{ cam.get('name', cam_id) }}{% endif %}</h3>
+<form hx-post="{% if is_new %}/cameras/add{% else %}/cameras/{{ cam_id }}/save{% endif %}"
+      hx-target="#camera-grid"
+      hx-swap="innerHTML"
+      hx-on::after-request="closeCameraModal()">
+  <div class="form-grid">
+    {% if is_new %}
+    <label>Camera ID
+      <input type="text" name="cam_id" value="" required placeholder="my_camera">
+    </label>
+    {% endif %}
+    <label>Name
+      <input type="text" name="name" value="{{ cam.get('name', '') }}" placeholder="Camera name" required>
+    </label>
+    <label class="full-width">URL
+      <input type="text" name="url" value="{{ cam.get('url', '') }}" placeholder="http://192.168.1.100/photo.jpg" required>
+    </label>
+    <label class="full-width">Output Directory
+      <div class="input-with-browse">
+        <input type="text" name="output_dir" id="cam-edit-outdir" value="{{ cam.get('output_dir', '') }}" placeholder="/path/to/output">
+        <button type="button" class="btn-secondary" onclick="openFolderModal('cam-edit-outdir')">Browse</button>
+      </div>
+    </label>
+    <label>Filename Prefix
+      <input type="text" name="prefix" value="{{ cam.get('prefix', '') }}" placeholder="e.g. Camera1-">
+    </label>
+    <label>
+      <input type="checkbox" name="enabled" value="true" {% if cam.get('enabled', true) %}checked{% endif %}> Enabled
+    </label>
+    <label>
+      <input type="checkbox" name="create_collection" value="true"{% if is_new %} checked{% endif %}> Auto-create collection
+      <span class="muted" style="font-size:0.75rem; display:block;">Saves output directory as a collection for exports</span>
+    </label>
+  </div>
+
+  <!-- Filename & image options (collapsible) -->
+  <details{% if cam.get('filename_format') or cam.get('resize') %} open{% endif %}>
+    <summary>Filename &amp; Image Options</summary>
+    <div class="form-grid" style="margin-top:0.5rem;">
+      <label class="full-width">Filename Format
+        <input type="text" name="filename_format" value="{{ cam.get('filename_format', '') }}"
+               placeholder="{prefix}{timestamp:%Y-%m-%d_%H-%M-%S}.{ext}">
+        <span class="muted" style="font-size:0.75rem;">Variables: {prefix}, {timestamp:FORMAT}, {ext} &mdash; leave blank for default</span>
+      </label>
+      <label>File Extension
+        <select name="ext">
+          <option value="jpg"{% if cam.get('ext', 'jpg') == 'jpg' %} selected{% endif %}>jpg</option>
+          <option value="png"{% if cam.get('ext') == 'png' %} selected{% endif %}>png</option>
+        </select>
+      </label>
+      <label>Quality (1-100)
+        <input type="number" name="quality" value="{{ cam.get('quality', 50) }}" min="1" max="100">
+      </label>
+      <label>
+        <input type="checkbox" name="resize" value="true" {% if cam.get('resize') %}checked{% endif %}
+               onchange="document.getElementById('resize-dims-{{cam_id}}').style.display=this.checked?'flex':'none'"> Resize on capture
+      </label>
+      <div id="resize-dims-{{cam_id}}" style="display:{% if cam.get('resize') %}flex{% else %}none{% endif %}; gap:0.5rem;">
+        <label>Width
+          <input type="number" name="resize_width" value="{{ cam.get('resize_width', 1920) }}" min="1">
+        </label>
+        <label>Height
+          <input type="number" name="resize_height" value="{{ cam.get('resize_height', 1080) }}" min="1">
+        </label>
+      </div>
+    </div>
+  </details>
+
+  <!-- Schedules -->
+  <h4 style="margin:0.75rem 0 0.5rem; color:var(--muted);">Schedules</h4>
+  <div id="cam-schedules">
+    {% set schedules = cam.get('schedules', []) %}
+    {% for sched in schedules %}
+    <div class="schedule-row{% if sched.get('enabled', true) == false %} disabled{% endif %}" style="padding:0.5rem 0; border-bottom:1px solid var(--border);">
+      <input type="hidden" name="sched_enabled" class="sched-enabled" value="{{ 'true' if sched.get('enabled', true) else 'false' }}">
+      <div style="display:flex; gap:0.4rem; align-items:flex-end; flex-wrap:wrap;">
+        <label class="toggle" style="flex:0 0 36px; margin-bottom:0.5rem;" title="Enable/disable this schedule">
+          <input type="checkbox" {% if sched.get('enabled', true) %}checked{% endif %}
+                 onchange="var row=this.closest('.schedule-row'); var h=row.querySelector('.sched-enabled'); h.value=this.checked?'true':'false'; row.classList.toggle('disabled',!this.checked);">
+          <span class="toggle-track"></span>
+        </label>
+        <label style="flex:0 0 60px;">Every
+          <input type="number" class="sched-amount" value="1" min="1" max="360" style="width:100%;" onchange="schedUpdate(this)" oninput="schedUpdate(this)">
+        </label>
+        <label style="flex:0 0 90px;">Unit
+          <select class="sched-unit" onchange="schedUpdate(this)">
+            <option value="seconds">seconds</option>
+            <option value="minutes" selected>minutes</option>
+            <option value="hours">hours</option>
+          </select>
+        </label>
+        <label style="flex:1; min-width:80px;">From
+          <select class="sched-from" onchange="schedUpdate(this)">
+            <option value="now">Now</option>
+            <option value="0">12 AM</option>
+            {% for h in range(1, 24) %}
+            <option value="{{ h }}">{{ h if h <= 12 else h - 12 }} {{ "AM" if h < 12 else "PM" }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="flex:1; min-width:80px;">To
+          <select class="sched-to" onchange="schedUpdate(this)">
+            <option value="0">All day</option>
+            {% for h in range(1, 24) %}
+            <option value="{{ h }}">{{ h if h <= 12 else h - 12 }} {{ "AM" if h < 12 else "PM" }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="button" class="btn-small btn-danger" onclick="this.closest('.schedule-row').remove()" style="margin-bottom:0.5rem;">&times;</button>
+      </div>
+      <input type="hidden" class="sched-type" name="sched_type" value="{{ sched.get('type', 'cron') }}">
+      <input type="hidden" class="sched-start-date" name="sched_start_date" value="{{ sched.get('start_date', '') }}">
+      <input type="hidden" class="sched-hour" name="sched_hour" value="{{ sched.get('hour', '*') }}">
+      <input type="hidden" class="sched-minute" name="sched_minute" value="{{ sched.get('minute', '*') }}">
+      <input type="hidden" class="sched-second" name="sched_second" value="{{ sched.get('second', '0') }}">
+      <input type="hidden" class="sched-interval-amount" name="sched_interval_amount" value="{{ sched.get('interval_amount', '') }}">
+      <input type="hidden" class="sched-interval-unit" name="sched_interval_unit" value="{{ sched.get('interval_unit', 'minutes') }}">
+      <p class="muted sched-summary" style="margin:0.15rem 0 0; font-size:0.8rem;"></p>
+    </div>
+    {% endfor %}
+  </div>
+  <button type="button" class="btn-secondary btn-small" style="margin-top:0.5rem;" onclick="addCamSchedule()">+ Add Schedule</button>
+
+  <div class="btn-row" style="margin-top:0.75rem;">
+    <button type="submit">Save</button>
+    {% if not is_new %}
+    <button type="button" class="btn-danger"
+            hx-post="/cameras/{{ cam_id }}/remove"
+            hx-target="#camera-grid"
+            hx-swap="innerHTML"
+            hx-on::after-request="closeCameraModal()"
+            hx-confirm="Delete this camera?">Delete</button>
+    {% endif %}
+    <button type="button" class="btn-secondary" onclick="closeCameraModal()">Cancel</button>
+  </div>
+</form>
+<script>
+// Initialize existing schedule rows from their hidden hour/minute values
+(function() {
+  document.querySelectorAll('#cam-schedules .schedule-row').forEach(function(row) {
+    initSchedRow(row);
+  });
+})();
+</script>

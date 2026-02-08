@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Config{% endblock %}
+{% block content %}
+<h1>Configuration</h1>
+<p class="muted" style="margin-bottom:1rem;">Config file: <code>{{ config_path }}</code></p>
+
+<form id="config-form" hx-post="/config/save" hx-target="#config-result" hx-swap="innerHTML">
+  <section class="card">
+    <h2>General</h2>
+    <div class="form-grid">
+      <label class="full-width">FFmpeg Path
+        <div class="input-with-browse">
+          <input type="text" name="ffmpeg_path" id="config-ffmpeg-path" value="{{ ffmpeg_path or '' }}" placeholder="Leave blank to auto-detect">
+          <button type="button" class="btn-secondary" onclick="openFolderModal('config-ffmpeg-path')">Browse</button>
+        </div>
+        <span class="muted">Path to ffmpeg executable. Leave blank to auto-detect from project bin/ directory.</span>
+      </label>
+    </div>
+    <div class="btn-row" style="margin-top:0.75rem;">
+      <button type="submit">Save</button>
+      <button type="button"
+              hx-post="/config/reload"
+              hx-target="#config-result"
+              hx-swap="innerHTML"
+              class="btn-secondary">Reload Scheduler</button>
+    </div>
+    <div id="config-result" style="margin-top:0.5rem;"></div>
+  </section>
+</form>
+
+<section class="card">
+  <h2>Scheduler Status</h2>
+  <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom:0.75rem;">
+    <div>
+      <p class="muted" style="margin:0; font-size:0.8rem;">Status</p>
+      <span class="badge {{ 'badge-ok' if scheduler_running else 'badge-err' }}">{{ "Running" if scheduler_running else "Stopped" }}</span>
+    </div>
+    <div>
+      <p class="muted" style="margin:0; font-size:0.8rem;">Cameras</p>
+      <strong>{{ camera_count }}</strong>
+    </div>
+    <div>
+      <p class="muted" style="margin:0; font-size:0.8rem;">Active Jobs</p>
+      <strong>{{ job_count }}</strong>
+    </div>
+  </div>
+  {% if jobs %}
+  <h3 style="margin-top:0.75rem;">Scheduled Jobs</h3>
+  <table>
+    <thead><tr><th>Camera</th><th>Job ID</th><th>Next Run</th></tr></thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td><strong>{{ job.camera_name or '—' }}</strong></td>
+        <td class="muted">{{ job.id }}</td>
+        <td>{{ job.next_run or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

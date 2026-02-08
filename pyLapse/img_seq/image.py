@@ -7,12 +7,13 @@ import os
 import re
 from datetime import datetime
 from io import BytesIO
-from typing import Optional
+from typing import Any, Callable, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from PIL import Image, ImageDraw, ImageFont
 
+from pyLapse.img_seq.fonts import get_default_font
 from pyLapse.img_seq.lapsetime import cron_image_filter, dayslice
 from pyLapse.img_seq.utils import ParallelExecutor, clear_target
 
@@ -43,8 +44,8 @@ WRITER_OPTIONS: tuple[str, ...] = (
     "zeropadding",
 )
 
-# Default font — falls back to Pillow's built-in when no font file is specified.
-_DEFAULT_FONT: str | None = None
+# Default font — bundled Roboto, falls back to Pillow's built-in if missing.
+_DEFAULT_FONT: str | None = get_default_font()
 
 
 # ---------------------------------------------------------------------------
@@ -57,9 +58,22 @@ def imageset_load(
     ext: str = "jpg",
     mask: str = "*",
     filematch: Optional[re.Pattern[str]] = None,
+    date_source: str = "filename",
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> ImageSet:
-    """Load an image set from a directory of timestamped images."""
-    return ImageSet().import_folder(inputdir, ext, mask, filematch)
+    """Load an image set from a directory of timestamped images.
+
+    Parameters
+    ----------
+    date_source:
+        ``"filename"`` (default) parses timestamps from filenames.
+        ``"created"`` uses the file's creation / modification time.
+    progress_callback:
+        Optional ``(completed, total, message)`` callback for progress tracking.
+    """
+    return ImageSet(date_source=date_source).import_folder(
+        inputdir, ext, mask, filematch, progress_callback=progress_callback,
+    )
 
 
 def imageset_from_names(
@@ -137,7 +151,7 @@ def save_image(
     if not timestampformat:
         timestampformat = "%Y-%m-%d %I:%M:%S %p"
     if not filenameformat:
-        filenameformat = "{prefix}{timestamp:%Y-%m-%d-%H%M%S}.{ext}"
+        filenameformat = "{prefix}{timestamp:%Y-%m-%d_%H-%M-%S}.{ext}"
 
     imgformat = FORMATS.get(ext, "JPEG")
 
@@ -270,8 +284,13 @@ class ImageIO:
         timestampfont: Optional[str] = None,
         prefix: str = "",
         zeropadding: int = 5,
+        progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> None:
-        """Write all images from *imageset* to *outputdir* with processing options."""
+        """Write all images from *imageset* to *outputdir* with processing options.
+
+        If *progress_callback* is provided it is called as
+        ``progress_callback(completed, total, "")`` after each image is written.
+        """
         os.makedirs(outputdir, exist_ok=True)
 
         if not timestampformat:
@@ -286,7 +305,7 @@ class ImageIO:
                 files.append((os.path.normpath(image_path), timestamp))
         output_files = sorted(files, key=lambda x: x[1])
 
-        writer_kwargs = dict(
+        writer_kwargs: dict[str, Any] = dict(
             outputdir=outputdir,
             resize=resize,
             quality=quality,
@@ -303,7 +322,12 @@ class ImageIO:
         )
 
         executor = ParallelExecutor(workers=self.workers, debug=self.debug)
-        executor.run_threaded(self._write_single_image, output_files, **writer_kwargs)
+        executor.run_threaded(
+            self._write_single_image,
+            output_files,
+            progress_callback=progress_callback,
+            **writer_kwargs,
+        )
 
     @staticmethod
     def _write_single_image(
@@ -345,11 +369,17 @@ class ImageIO:
         return f"saved {outputfile}"
 
     @staticmethod
-    def fetch_image_from_url(url: str) -> Image.Image:
-        """Download an image from *url* and return a PIL Image."""
+    def fetch_image_from_url(url: str, timeout: int = 10) -> Image.Image:
+        """Download an image from *url* and return a PIL Image.
+
+        Parameters
+        ----------
+        timeout : int
+            Socket timeout in seconds (default 10).
+        """
         try:
             request = Request(url)
-            imgdata = urlopen(request).read()
+            imgdata = urlopen(request, timeout=timeout).read()
         except (HTTPError, URLError) as exc:
             logger.error("Failed to fetch image from %s: %s", url, exc)
             raise
@@ -415,7 +445,7 @@ class ImageSet:
     Images are grouped by day and indexed by their parsed timestamps.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, date_source: str = "filename") -> None:
         self.imageindex: dict[str, dict[str, datetime]] = {}
         self.filematch: Optional[re.Pattern[str]] = None
         self.images: list[str] = []
@@ -424,6 +454,7 @@ class ImageSet:
         self.filtered_images_index: dict[str, dict[str, datetime]] = {}
         self._ext: str = "jpg"
         self._mask: str = "*"
+        self._date_source: str = date_source
         self.imagecount: int = 0
 
     def __str__(self) -> str:
@@ -438,6 +469,7 @@ class ImageSet:
         ext: str = "jpg",
         mask: str = "*",
         filematch: Optional[re.Pattern[str]] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
     ) -> ImageSet:
         """Load all images matching *mask*.*ext* from *inputdir*."""
         self.inputdir = inputdir
@@ -445,7 +477,7 @@ class ImageSet:
         self._mask = mask or "*"
         self.images = sorted(self._scandir(inputdir, self._mask, ext))
         self.filematch = filematch
-        self.imageindex = self.index_files(self.images, self.filematch)
+        self.imageindex = self._build_index(self.images, self.filematch, progress_callback=progress_callback)
         return self
 
     def refresh_folder(self) -> None:
@@ -453,7 +485,7 @@ class ImageSet:
         if not self.inputdir:
             return
         self.images = sorted(self._scandir(self.inputdir, self._mask, self._ext))
-        self.imageindex = self.index_files(self.images, self.filematch)
+        self.imageindex = self._build_index(self.images, self.filematch)
 
     def import_from_list(
         self,
@@ -465,13 +497,14 @@ class ImageSet:
         """Create an image set from an explicit list of file paths."""
         self.images = sorted(imagelist)
         self.filematch = filematch
-        self.imageindex = self.index_files(self.images, filematch)
+        self.imageindex = self._build_index(self.images, filematch)
         return self
 
     def index_files(
         self,
         files: list[str],
         filematch: Optional[re.Pattern[str]] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
     ) -> dict[str, dict[str, datetime]]:
         """Parse timestamps from filenames and group by day.
 
@@ -479,12 +512,15 @@ class ImageSet:
         """
         self.imagecount = 0
         pattern = filematch or _DEFAULT_FILENAME_RE
+        total = len(files)
 
         days: dict[str, dict[str, datetime]] = {}
-        for f in files:
+        for i, f in enumerate(files):
             image_name = os.path.basename(f)
             match = pattern.match(image_name)
             if not match:
+                if progress_callback and (i + 1) % 500 == 0:
+                    progress_callback(i + 1, total, "Indexing filenames")
                 continue
 
             dateargs = list(match.groups())
@@ -499,7 +535,76 @@ class ImageSet:
             days[day][f] = timestamp
             self.imagecount += 1
 
+            if progress_callback and (i + 1) % 500 == 0:
+                progress_callback(i + 1, total, "Indexing filenames")
+
+        if progress_callback:
+            progress_callback(total, total, "Indexing complete")
         return days
+
+    def _index_by_created(
+        self,
+        files: list[str],
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> dict[str, dict[str, datetime]]:
+        """Group files by day using file creation/modification time."""
+        self.imagecount = 0
+        total = len(files)
+        days: dict[str, dict[str, datetime]] = {}
+        for i, f in enumerate(files):
+            try:
+                stat = os.stat(f)
+                # Use birth time if available (Windows), else mtime
+                ctime = getattr(stat, "st_birthtime", None) or stat.st_ctime
+                timestamp = datetime.fromtimestamp(ctime)
+            except OSError:
+                if progress_callback and (i + 1) % 200 == 0:
+                    progress_callback(i + 1, total, "Reading file dates")
+                continue
+
+            day = timestamp.strftime("%Y-%m-%d")
+            if day not in days:
+                days[day] = {}
+            days[day][f] = timestamp
+            self.imagecount += 1
+
+            if progress_callback and (i + 1) % 200 == 0:
+                progress_callback(i + 1, total, "Reading file dates")
+
+        if progress_callback:
+            progress_callback(total, total, "Indexing complete")
+        return days
+
+    def _build_index(
+        self,
+        files: list[str],
+        filematch: Optional[re.Pattern[str]] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> dict[str, dict[str, datetime]]:
+        """Route to the appropriate indexing method based on ``_date_source``."""
+        if self._date_source == "created":
+            return self._index_by_created(files, progress_callback=progress_callback)
+        return self.index_files(files, filematch, progress_callback=progress_callback)
+
+    def filter_index(
+        self,
+        files: list[str],
+    ) -> dict[str, dict[str, datetime]]:
+        """Return a subset of :attr:`imageindex` containing only *files*.
+
+        More efficient than re-indexing from disk because timestamps are
+        already cached, and works correctly regardless of ``date_source``.
+        """
+        matched = set(os.path.normpath(f) for f in files)
+        result: dict[str, dict[str, datetime]] = {}
+        for day, day_files in self.imageindex.items():
+            day_matched = {
+                f: ts for f, ts in day_files.items()
+                if os.path.normpath(f) in matched
+            }
+            if day_matched:
+                result[day] = day_matched
+        return result
 
     def filter_images(
         self,
@@ -516,9 +621,7 @@ class ImageSet:
             minutelist=minutelist,
             fuzzy=fuzzy,
         )
-        self.filtered_images_index = self.index_files(
-            self.filtered_images, self.filematch
-        )
+        self.filtered_images_index = self.filter_index(self.filtered_images)
 
     @property
     def days(self) -> list[str]:
