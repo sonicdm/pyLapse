@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.venv/
+venv/
+*.log
+
+# FFmpeg binaries
+bin/
+
+# Local configuration
+capture_config.json
+
+# Video output
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Windows temp
+nul
