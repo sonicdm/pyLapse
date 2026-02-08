@@ -35,8 +35,6 @@ python web_ui.py [--host 0.0.0.0] [--port 8000] [--config capture_config.json]
 
 The launcher scripts will create a virtual environment and install dependencies automatically on first run.
 
-![Dashboard](screenshots/dashboard.png)
-
 **Dashboard features:**
 - Live camera preview and on-demand image grab
 - Per-camera and per-schedule enable/disable toggles
@@ -44,6 +42,10 @@ The launcher scripts will create a virtual environment and install dependencies 
 - Cron and interval-based capture scheduling
 - Configurable filename formatting, image quality, and resize on capture
 - Granular auto-refreshing dashboard sections (no full-page flicker)
+
+![Dashboard](screenshots/dashboard.png)
+
+
 
 ![Cameras](screenshots/cameras.png)
 
