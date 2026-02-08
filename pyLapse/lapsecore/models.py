@@ -1,4 +1,4 @@
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django_extensions.db.fields import AutoSlugField
 from django.db.models import *
 from django.conf import settings
@@ -28,8 +28,8 @@ class Camera(models.Model):
     class Meta:
         ordering = ('-created',)
 
-    def __unicode__(self):
-        return u'%d: %s' % (self.pk, self.slug)
+    def __str__(self):
+        return '%d: %s' % (self.pk, self.slug)
 
     def get_absolute_url(self):
         return reverse('lapsecore_camera_detail', args=(self.slug,))
@@ -52,8 +52,8 @@ class Capture(models.Model):
     class Meta:
         ordering = ('-created',)
 
-    def __unicode__(self):
-        return u'%s' % self.slug
+    def __str__(self):
+        return '%s' % self.slug
 
     def get_absolute_url(self):
         return reverse('lapsecore_capture_detail', args=(self.slug,))
@@ -80,8 +80,8 @@ class CaptureSchedule(models.Model):
     class Meta:
         ordering = ('-created',)
 
-    def __unicode__(self):
-        return u'%s' % self.slug
+    def __str__(self):
+        return '%s' % self.slug
 
     def get_absolute_url(self):
         return reverse('lapsecore_captureschedule_detail', args=(self.slug,))
@@ -105,8 +105,8 @@ class CaptureCamera(models.Model):
     class Meta:
         ordering = ('-created',)
 
-    def __unicode__(self):
-        return u'%s' % self.slug
+    def __str__(self):
+        return '%s' % self.slug
 
     def get_absolute_url(self):
         return reverse('lapsecore_capturecamera_detail', args=(self.slug,))
@@ -131,8 +131,8 @@ class Collection(models.Model):
     class Meta:
         ordering = ('-last_updated',)
 
-    def __unicode__(self):
-        return u'%s' % self.slug
+    def __str__(self):
+        return '%s' % self.slug
 
 
 class CollectionOptions(models.Model):
@@ -161,8 +161,8 @@ class CaptureImage(models.Model):
     class Meta:
         ordering = ('created',)
 
-    def __unicode__(self):
-        return u'%s' % self.slug
+    def __str__(self):
+        return '%s' % self.slug
 
     def get_absolute_url(self):
         return reverse('lapsecore_capture_detail', args=(self.slug,))

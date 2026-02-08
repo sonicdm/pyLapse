@@ -1,208 +1,97 @@
 # pyLapse
-Automatically save images from ip cameras into collections for export and or render
-detailed scheduling and export options
 
-## Current Functionality
-The core of pyLapse lies in the ImgSeq module. This is where all of the image capturing, saving, filtering and processing happens.
-Still very much WIP
+Automatically save images from IP cameras into collections for export and video rendering, with detailed scheduling and export options.
 
-### Image loading, filtering, and saving:
-#### Load a directory of files:
-```python
-from pyLapse.ImgSeq.collections import Collection
-collection = Collection('Name', r'/path/to/output/directory', r'/path/to/input/directory')
->>> print collection
-Image Collection: Name, Location: Input Directory, Image Count: 12020
+## Installation
+
+```bash
+pip install -r requirements.txt
 ```
 
-#### Configure an export:
-```python
-# Creates an export that exports every 15 minutes of every other hour.
-# Follows traditional cron formats. 
-# subdir is the location inside the export directory to write to if specified. 
-collection.add_export('Export Name', subdir='subdirectory', minute='*/15', hour='*/2')
-```
-#### Run an export:
-```python
-# Runs the export and passes on arguments to the image writer
-collection.export.run('Export Name', '/path/to/output/directory', prefix='Filename Prefix ', drawtimestamp=True, optimize=True)
-```
+**For video rendering:** download [ffmpeg](https://ffmpeg.org/download.html) and place the executable in the project's `bin/` directory.
 
-### Camera operations:
-#### Create camera from IP Camera:
-```python
-from pyLapse.ImgSeq.camera import Camera
-webcam = Camera('Name', r'http://192.168.1.106:8080/photoaf.jpg', 'Physical Location (optional)')
+## Quick Start
+
+### Auto-capture from IP cameras
+
+Configure cameras and schedules in `capture_config.json` (see `capture_config.example.json` for the format):
+
+```bash
+python autocapture.py
 ```
 
-#### Grab image from IP Camera:
+### Load and export a collection
+
 ```python
-# Saves image to output directory and passes kwargs to the file writer.
-webcam.save_image('/path/to/output/directory', prefix='Filename Prefix ', optimize=True)
+from pyLapse.img_seq import Collection
+
+# Load images from a directory
+collection = Collection("My Timelapse", "/path/to/output", "/path/to/images")
+print(collection)
+# Image Collection: My Timelapse, Location: /path/to/images, Image Count: 12020
+
+# Create a cron-filtered export (every 15 minutes, every other hour)
+collection.add_export("Day Export", subdir="day", minute="*/15", hour="*/2")
+
+# Run the export
+collection.export.run(
+    "Day Export", "/path/to/export",
+    prefix="Timelapse ", drawtimestamp=True, optimize=True,
+)
 ```
 
-## Planned Web Interface Outline:
-### MENU
-* Home - /
-  * Captures - /captures
-  * Cameras - /cameras
-  * Collections - /collections
-  * Time Ranges - /timefilters
-  * Scheduler - /scheduler
-  * Import/Export ->
-     * Import /collections/import
-     * Export - /export
- * Logs - /logs
+### Camera operations
 
+```python
+from pyLapse.img_seq import Camera
 
-### Endpoint Map
-```/
-    Dashboard
-        List of scheduled captures - link to edit captures:
-            per line
-                pause/resume button
-                details: Caputure name, Cameras Used, Last capture, Next capture, Total frames, size on disk
-                edit/delete links - /captures
-                force download
-        Camera Previews (optional):
-            1 up, 2 up, 4 up, Etc..
-        Collections:
-            Last captured images
-        Storage Stats
-        Notifications (missed captures, drive space running low, capture ended/started etc., 
-                       empty capture detected)
+webcam = Camera("Front Porch", "http://192.168.1.100:8080/photoaf.jpg")
 
+# Grab and save a single image
+webcam.save_image("/path/to/output", prefix="FrontPorch ")
+```
 
-/settings - ini file not db.
-    /general
-        Web Server
-            port
-            ip
-            https?
-            https port
+### Video rendering (ffmpeg)
 
-        Security
-            allow outside access?
-        Options
-            Time Zone: dropdown
-            Launch browser on startup?: []
-        [Save Changes] [Restart pyLapse]
+Render an image sequence directory to a single video file.
 
-    /cameras
-        [Add Camera]
-        List of cameras:
-            per line
-                Camera Name, Status, enabled [], edit link, delete link
-            /manage
-                /add
-                    name
-                    full res shot url: Url for the full size image. ex: http://192.168.1.100:8080/photoaf.jpg
-                    ## used for the live preview
-                    video still url: If different from full res. ex: http://192.168.1.100:8080/shot.jpg
-                    video feed: (Not sure if I am gonna do this but just in case)
-                    username: (optional)
-                    password: (optional)
-                    enabled?: []
-                    [Save] [Save & Add New]
-                /remove
-                /edit
-                    fields from /add
-                    [save] [remove]
+**CLI:**
+```bash
+python render_video.py /path/to/image/sequence output.mp4 --fps 24 --pattern "*.jpg"
+```
 
-    /notifications
-        idk i guess people use this
+**Python:**
+```python
+from pyLapse.img_seq import render_sequence_to_video
 
-    /advanced
+render_sequence_to_video(
+    input_dir="/path/to/image/sequence",
+    output_path="output.mp4",
+    fps=24,
+    pattern="*.jpg",
+)
+```
 
+## Project Structure
 
-/timefilters - set up ranges
-    /add
-        name
-        date span: (selected, single, all, range) Calendar widget? (default to all)
-        hours: (checkboxes? multiselect list?)
-        minutes: (checkboxes? multiselect list?)
-        [Save] [Save & Add New]
-    /remove
-    /edit
+```
+pyLapse/
+  img_seq/          Core library
+    cameras.py        Camera class for IP camera image capture
+    collections.py    Collection and Export classes for organizing/filtering images
+    image.py          ImageIO, ImageSet - image loading, saving, timestamps
+    lapsetime.py      Time-based filtering (cron-style, dayslice, nearest-match)
+    settings.py       Example configuration templates
+    utils.py          Threading helpers, URL validation, file utilities
+    video.py          ffmpeg-based video rendering with progress bar
+    tests.py          pytest test suite
+autocapture.py      CLI auto-capture scheduler
+render_video.py     CLI video renderer
+```
 
+## Running Tests
 
-/captures
-    /add
-        Name
-        Destination collection(s?): Dropdown list/multi list - link to create new collection
-        Cameras: (multi select list of added camera feeds) add camera link?
-            camera alias: short name alias for camera in file names
-        Start: Date/Time to begin the capture
-        End: Date/Time to end the capture
-        Capture interval: (seconds, minutes, hours, days) gotta figure out a clean way to do this..
-        Active Times Range: ex: from 7:45am to 8:15pm
-        [Save] [Save & Add New]
-    /remove
-    /edit
+```bash
+pytest pyLapse/img_seq/tests.py -v
+```
 
-
-/collections
-    /import
-        import from folder
-            source folder
-            import to existing collection?: [] (default no) ->
-                choose collection: dropdown list?
-                copy or move files?: dropdown list?
-            name: Collection Name
-            source filename mask: regex, strptime, or image seq
-            destination filename mask: strftime & tags (default '<prefix> - <camera> - yyyy-mm-dd-hhmmss')
-            collection folder location: (default: %user%/pictures/pyLapse/<collection name>)
-            Auto resize?; [] (default no) ->
-                size: default (1920x1080)
-                quality: (default 50)
-                always?: [] always resize on add or just this once (default just this once)
-            [import] [preview import?]
-    /add
-        name: Collection Name
-        prefix: filename prefix for collection
-        destination filename mask: strftime & tags (default '<prefix> - <camera alias> - yyyy-mm-dd-hhmmss')
-        auto-resize?: [] Automatically resize images added to collection (default off)
-            size: default (1920x1080)
-            quality: (default 50)
-        auto-optimize?: [] automatically make the file as small as possible (saves disk space for long captures)
-        collection folder location: (default: %user%/pictures/pyLapse/<collection name>)
-    /delete
-    /edit
-    /scenes?
-    /clips: exported files? 
-
-
-
-/export
-    Presets: dropdown list?
-    Collection: select a collection (default to linked from collection)
-        select camera
-    Timeframe Preset: select a timeframe preset (default to everything) - /timefilters
-        link to add new preset here?
-    Timeframe Selection: - one time or populated from /timefilters selected preset - default to ALL FRAMES
-        or add preset this way?
-        Save as preset? []
-        Preset name
-    Export type: dropdown? type of export (image sequence, video, zip, ???)
-        Image Sequence: options for image sequence export
-            prefix: text to prefix before sequence (default: none)
-            digit width:
-
-    Destination File/Folder: output folder/filename
-    Save as preset? []
-    Preset Name
-
-    /imagesequence
-    /video
-    /presets
-
-
-/scheduler
-    /add
-        task (export, clear export targets, render)
-        time
-    /remove
-    /edit
-
-
-/logs - display logs```
