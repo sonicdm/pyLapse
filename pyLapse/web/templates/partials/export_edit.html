@@ -131,6 +131,10 @@
       </label>
       <label>Width <input type="number" name="resolution_w" value="{{ exp.get('resolution_w', 1920) }}" min="1"></label>
       <label>Height <input type="number" name="resolution_h" value="{{ exp.get('resolution_h', 1080) }}" min="1"></label>
+      <label class="full-width">
+        <input type="checkbox" name="keep_aspect" value="true" {% if exp.get('keep_aspect', true) %}checked{% endif %}> Keep aspect ratio
+        <span class="muted" style="font-size:0.75rem; display:block;">Fits within W x H without stretching. Uncheck to force exact dimensions.</span>
+      </label>
       <label>Quality <input type="range" name="quality" value="{{ exp.get('quality', 50) }}" min="1" max="100" oninput="this.nextElementSibling.textContent=this.value"><span>{{ exp.get('quality', 50) }}</span></label>
       <label class="full-width">
         <input type="checkbox" name="optimize" value="true" {% if exp.get('optimize') %}checked{% endif %}> Optimize (slower)

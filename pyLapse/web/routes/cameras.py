@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _get_all_timezones() -> list[str]:
-    """Return a sorted list of all IANA timezone names."""
+def _get_all_timezones() -> list[dict[str, str]]:
+    """Return sorted IANA timezone list with friendly labels."""
     try:
         from zoneinfo import available_timezones
     except ImportError:
@@ -29,7 +29,31 @@ def _get_all_timezones() -> list[str]:
             from backports.zoneinfo import available_timezones  # type: ignore[no-redef]
         except ImportError:
             return []
-    return sorted(available_timezones())
+
+    _LABELS: dict[str, str] = {
+        "Pacific/Auckland": "New Zealand",
+        "Pacific/Chatham": "New Zealand — Chatham Islands",
+        "NZ": "New Zealand (legacy alias)",
+        "NZ-CHAT": "New Zealand Chatham (legacy alias)",
+        "US/Eastern": "US Eastern",
+        "US/Central": "US Central",
+        "US/Mountain": "US Mountain",
+        "US/Pacific": "US Pacific",
+        "America/New_York": "US Eastern — New York",
+        "America/Chicago": "US Central — Chicago",
+        "America/Denver": "US Mountain — Denver",
+        "America/Los_Angeles": "US Pacific — Los Angeles",
+        "Europe/London": "United Kingdom",
+        "Asia/Tokyo": "Japan",
+        "Australia/Sydney": "Australia — Sydney",
+        "Australia/Melbourne": "Australia — Melbourne",
+    }
+
+    result = []
+    for tz in sorted(available_timezones()):
+        label = _LABELS.get(tz)
+        result.append({"value": tz, "label": f"{tz} ({label})" if label else tz})
+    return result
 
 
 def _load_config() -> dict:

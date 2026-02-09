@@ -4,16 +4,38 @@
     <div class="progress-fill" id="pf-{{ task.id }}" style="width: {{ task.progress }}%"></div>
   </div>
   <p class="progress-text" id="pt-{{ task.id }}">{{ task.status }} &mdash; {{ task.progress|round(1) }}%{% if task.message %} &mdash; {{ task.message }}{% endif %}</p>
+  <p class="muted" id="ps-{{ task.id }}" style="font-size:0.85rem;margin-top:0.25rem;"></p>
 </div>
 <script>
 (function() {
   var tid = {{ task.id|tojson }};
   var resultUrl = {{ (result_url or '')|tojson }};
+
+  function fmtDuration(secs) {
+    if (!secs || secs < 0) return '';
+    secs = Math.round(secs);
+    if (secs < 60) return secs + 's';
+    var m = Math.floor(secs / 60), s = secs % 60;
+    if (m < 60) return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+    var h = Math.floor(m / 60); m = m % 60;
+    return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+  }
+
+  function fmtRate(rate) {
+    if (!rate || rate <= 0) return '';
+    if (rate >= 10) return Math.round(rate) + '/s';
+    if (rate >= 1) return rate.toFixed(1) + '/s';
+    var perMin = rate * 60;
+    if (perMin >= 1) return perMin.toFixed(1) + '/min';
+    return rate.toFixed(2) + '/s';
+  }
+
   var es = new EventSource('/api/tasks/' + tid + '/progress');
   es.addEventListener('progress', function(e) {
     var d = JSON.parse(e.data);
     var fill = document.getElementById('pf-' + tid);
     var text = document.getElementById('pt-' + tid);
+    var stats = document.getElementById('ps-' + tid);
     if (fill) fill.style.width = d.progress.toFixed(1) + '%';
     if (text) {
       var msg = d.status + ' \u2014 ' + d.progress.toFixed(1) + '%';
@@ -21,8 +43,17 @@
       if (d.message) msg += ' \u2014 ' + d.message;
       text.textContent = msg;
     }
+    if (stats) {
+      var parts = [];
+      var r = fmtRate(d.rate);
+      if (r) parts.push(r);
+      if (d.elapsed > 0) parts.push('elapsed ' + fmtDuration(d.elapsed));
+      if (d.eta > 0) parts.push('~' + fmtDuration(d.eta) + ' remaining');
+      stats.textContent = parts.join(' \u00b7 ');
+    }
     if (d.status === 'completed' || d.status === 'failed') {
       es.close();
+      if (stats && d.elapsed > 0) stats.textContent = 'Completed in ' + fmtDuration(d.elapsed);
       if (d.status === 'completed' && resultUrl) {
         fetch(resultUrl).then(function(r) { return r.text(); }).then(function(html) {
           var el = document.getElementById('task-' + tid);

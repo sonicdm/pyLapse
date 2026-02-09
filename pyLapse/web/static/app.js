@@ -570,3 +570,129 @@ function applyCPreset(hour, minute, el) {
   el.closest('.preset-chips').querySelectorAll('.preset-chip').forEach(function(c) { c.classList.remove('active'); });
   el.classList.add('active');
 }
+
+
+/* ===================================================================
+ * Global task tray — polls for active tasks, shows progress on all pages
+ * =================================================================== */
+(function() {
+  var tray = document.getElementById('task-tray');
+  if (!tray) return;
+
+  // Track tasks we've seen complete so we can show them briefly then remove
+  var doneTimers = {};
+
+  function fmtDuration(secs) {
+    if (!secs || secs < 0) return '';
+    secs = Math.round(secs);
+    if (secs < 60) return secs + 's';
+    var m = Math.floor(secs / 60);
+    var s = secs % 60;
+    if (m < 60) return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+    var h = Math.floor(m / 60);
+    m = m % 60;
+    return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+  }
+
+  function fmtRate(rate) {
+    if (!rate || rate <= 0) return '';
+    if (rate >= 10) return Math.round(rate) + '/s';
+    if (rate >= 1) return rate.toFixed(1) + '/s';
+    // Less than 1/s — show as x/min
+    var perMin = rate * 60;
+    if (perMin >= 1) return perMin.toFixed(1) + '/min';
+    return rate.toFixed(2) + '/s';
+  }
+
+  function renderTray(tasks) {
+    // Build set of active task IDs
+    var activeIds = {};
+    tasks.forEach(function(t) { activeIds[t.id] = true; });
+
+    // Remove tray items for tasks no longer active (and not in done timer)
+    tray.querySelectorAll('.tray-task').forEach(function(el) {
+      var tid = el.dataset.taskId;
+      if (!activeIds[tid] && !doneTimers[tid]) {
+        el.remove();
+      }
+    });
+
+    tasks.forEach(function(t) {
+      var el = tray.querySelector('[data-task-id="' + t.id + '"]');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'tray-task';
+        el.dataset.taskId = t.id;
+        el.innerHTML =
+          '<div class="tray-name"><span class="tray-label"></span><span class="tray-pct"></span></div>' +
+          '<div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>' +
+          '<p class="tray-msg"></p>' +
+          '<p class="tray-stats"></p>';
+        tray.appendChild(el);
+      }
+
+      el.querySelector('.tray-label').textContent = t.name;
+      var pct = t.progress.toFixed(1) + '%';
+      el.querySelector('.tray-pct').textContent = pct;
+      el.querySelector('.progress-fill').style.width = pct;
+
+      var msg = '';
+      if (t.current && t.total) msg = t.current + '/' + t.total;
+      if (t.message) msg += (msg ? ' \u2014 ' : '') + t.message;
+      el.querySelector('.tray-msg').textContent = msg || t.status;
+
+      // Rate + ETA line
+      var stats = [];
+      var r = fmtRate(t.rate);
+      if (r) stats.push(r);
+      if (t.elapsed > 0) stats.push('elapsed ' + fmtDuration(t.elapsed));
+      if (t.eta > 0) stats.push('~' + fmtDuration(t.eta) + ' left');
+      el.querySelector('.tray-stats').textContent = stats.join(' \u00b7 ');
+    });
+  }
+
+  function pollTasks() {
+    fetch('/api/tasks/active')
+      .then(function(r) { return r.json(); })
+      .then(function(tasks) {
+        renderTray(tasks);
+        // Also check for recently completed tasks to show briefly
+        checkCompleted();
+        // Poll faster when there are active tasks
+        var delay = tasks.length > 0 ? 800 : 5000;
+        setTimeout(pollTasks, delay);
+      })
+      .catch(function() {
+        setTimeout(pollTasks, 5000);
+      });
+  }
+
+  function checkCompleted() {
+    // Check all tasks and briefly show completed/failed ones
+    fetch('/api/tasks')
+      .then(function(r) { return r.json(); })
+      .then(function(allTasks) {
+        allTasks.forEach(function(t) {
+          if ((t.status === 'completed' || t.status === 'failed') && !doneTimers[t.id]) {
+            var el = tray.querySelector('[data-task-id="' + t.id + '"]');
+            if (el) {
+              // Task was active and just finished — show result briefly
+              el.classList.add(t.status === 'completed' ? 'tray-done' : 'tray-failed');
+              el.querySelector('.tray-pct').textContent = t.status === 'completed' ? 'Done' : 'Failed';
+              el.querySelector('.tray-msg').textContent = t.status === 'failed' ? (t.error || '').split('\n').pop() : 'Completed';
+              el.querySelector('.progress-fill').style.width = '100%';
+              if (t.status === 'failed') el.querySelector('.progress-fill').style.background = 'var(--err)';
+              doneTimers[t.id] = setTimeout(function() {
+                el.remove();
+                delete doneTimers[t.id];
+              }, 8000);
+            }
+          }
+        });
+      })
+      .catch(function() {});
+  }
+
+  // Start polling
+  pollTasks();
+})();

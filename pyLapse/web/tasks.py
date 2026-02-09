@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -25,6 +26,9 @@ class Task:
     message: str = ""
     error: str | None = None
     result: Any = None
+    rate: float = 0.0  # items per second
+    eta: float = 0.0  # estimated seconds remaining
+    elapsed: float = 0.0  # seconds since task started
     meta: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: str | None = None
@@ -40,6 +44,9 @@ class Task:
             "total": self.total,
             "message": self.message,
             "error": self.error,
+            "rate": round(self.rate, 2),
+            "eta": round(self.eta, 1),
+            "elapsed": round(self.elapsed, 1),
             "created_at": self.created_at,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -71,19 +78,32 @@ class TaskManager:
         with self._lock:
             self._tasks[task_id] = task
 
+        start_ts = 0.0
+
         def _progress(completed: int, total: int, message: str) -> None:
             task.current = completed
             task.total = total
             task.message = message
             task.progress = (completed / total * 100) if total else 0
+            if start_ts and completed > 0:
+                elapsed = time.monotonic() - start_ts
+                task.elapsed = elapsed
+                if elapsed > 0:
+                    task.rate = completed / elapsed
+                    remaining = total - completed
+                    task.eta = remaining / task.rate if task.rate > 0 else 0
 
         def _run() -> None:
+            nonlocal start_ts
             task.status = "running"
             task.started_at = datetime.now().isoformat()
+            start_ts = time.monotonic()
             try:
                 task.result = func(*args, progress_callback=_progress, **kwargs)
                 task.status = "completed"
                 task.progress = 100.0
+                task.eta = 0.0
+                task.elapsed = time.monotonic() - start_ts
             except Exception as exc:
                 task.status = "failed"
                 task.error = traceback.format_exc()

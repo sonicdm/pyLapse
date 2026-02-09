@@ -44,10 +44,57 @@ def _load_collection_stats(
     }
 
 
-def _get_all_timezones() -> list[str]:
-    """Return sorted list of all IANA timezone names."""
+def _get_all_timezones() -> list[dict[str, str]]:
+    """Return sorted list of IANA timezone dicts with friendly labels.
+
+    Each entry is ``{"value": "Pacific/Auckland", "label": "Pacific/Auckland (New Zealand)"}``.
+    Common aliases get human-readable labels so that searching "New Zealand"
+    or "Eastern" finds the right entry in a ``<datalist>``.
+    """
     from zoneinfo import available_timezones
-    return sorted(available_timezones())
+
+    # Map IANA names → friendly labels for common zones
+    _LABELS: dict[str, str] = {
+        "Pacific/Auckland": "New Zealand",
+        "Pacific/Chatham": "New Zealand — Chatham Islands",
+        "NZ": "New Zealand (legacy alias)",
+        "NZ-CHAT": "New Zealand Chatham (legacy alias)",
+        "US/Eastern": "US Eastern",
+        "US/Central": "US Central",
+        "US/Mountain": "US Mountain",
+        "US/Pacific": "US Pacific",
+        "US/Alaska": "US Alaska",
+        "US/Hawaii": "US Hawaii",
+        "America/New_York": "US Eastern — New York",
+        "America/Chicago": "US Central — Chicago",
+        "America/Denver": "US Mountain — Denver",
+        "America/Los_Angeles": "US Pacific — Los Angeles",
+        "America/Anchorage": "US Alaska — Anchorage",
+        "Pacific/Honolulu": "US Hawaii — Honolulu",
+        "Europe/London": "United Kingdom",
+        "Europe/Paris": "France / Central Europe",
+        "Europe/Berlin": "Germany / Central Europe",
+        "Europe/Moscow": "Russia — Moscow",
+        "Asia/Tokyo": "Japan",
+        "Asia/Shanghai": "China",
+        "Asia/Kolkata": "India",
+        "Asia/Dubai": "UAE / Gulf",
+        "Australia/Sydney": "Australia — Sydney (Eastern)",
+        "Australia/Melbourne": "Australia — Melbourne (Eastern)",
+        "Australia/Perth": "Australia — Perth (Western)",
+        "Australia/Adelaide": "Australia — Adelaide (Central)",
+        "Australia/Brisbane": "Australia — Brisbane (Queensland)",
+    }
+
+    tzs = sorted(available_timezones())
+    result = []
+    for tz in tzs:
+        label = _LABELS.get(tz)
+        if label:
+            result.append({"value": tz, "label": f"{tz} ({label})"})
+        else:
+            result.append({"value": tz, "label": tz})
+    return result
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -220,6 +267,7 @@ def _run_collection_export(
     minute: str,
     second: str,
     resize: bool,
+    keep_aspect: bool,
     resolution_w: int,
     resolution_h: int,
     quality: int,
@@ -271,6 +319,7 @@ def _run_collection_export(
             quality=quality,
             optimize=optimize,
             resolution=(resolution_w, resolution_h),
+            keep_aspect=keep_aspect,
             drawtimestamp=drawtimestamp,
             timestampformat=timestampformat or "%Y-%m-%d %I:%M:%S %p",
             timestampfont=timestampfont or None,
@@ -352,6 +401,7 @@ async def collections_export(
     minute: str = Form("*"),
     second: str = Form("0"),
     resize: bool = Form(False),
+    keep_aspect: bool = Form(True),
     resolution_w: int = Form(1920),
     resolution_h: int = Form(1080),
     quality: int = Form(50),
@@ -394,6 +444,7 @@ async def collections_export(
         minute=minute,
         second=second,
         resize=resize,
+        keep_aspect=keep_aspect,
         resolution_w=resolution_w,
         resolution_h=resolution_h,
         quality=quality,

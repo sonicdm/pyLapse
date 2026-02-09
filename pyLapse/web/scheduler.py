@@ -24,7 +24,10 @@ class CaptureScheduler:
     """Singleton-style scheduler that manages cameras and capture jobs."""
 
     def __init__(self) -> None:
-        self._scheduler = BackgroundScheduler()
+        self._scheduler = BackgroundScheduler(
+            job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 30},
+            executors={"default": {"type": "threadpool", "max_workers": 20}},
+        )
         self.cameras: dict[str, Camera] = {}
         self._camera_config: dict[str, dict[str, Any]] = {}
         self.capture_history: list[dict[str, Any]] = []
@@ -153,6 +156,8 @@ class CaptureScheduler:
                 sched_type = rule.get("type", "cron")
 
                 try:
+                    job_name = f"Capture {camera.name}"
+
                     if sched_type == "interval":
                         # Interval trigger — anchored to start_date, survives restarts
                         interval_amount = int(rule.get("interval_amount", 1))
@@ -169,6 +174,7 @@ class CaptureScheduler:
                             self._capture_image,
                             "interval",
                             id=job_id,
+                            name=job_name,
                             args=(cam_id, output_dir, save_kwargs),
                             start_date=start_date,
                             **interval_kwargs,
@@ -183,6 +189,7 @@ class CaptureScheduler:
                             self._capture_image,
                             "cron",
                             id=job_id,
+                            name=job_name,
                             args=(cam_id, output_dir, save_kwargs),
                             **cron_kwargs,
                         )

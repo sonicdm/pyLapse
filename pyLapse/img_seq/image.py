@@ -166,6 +166,7 @@ def save_image(
     quality: int = 50,
     optimize: bool = False,
     resolution: tuple[int, int] = (1920, 1080),
+    keep_aspect: bool = True,
     drawtimestamp: bool = False,
     timestampformat: Optional[str] = None,
     filenameformat: Optional[str] = None,
@@ -206,7 +207,10 @@ def save_image(
     imgformat = FORMATS.get(ext, "JPEG")
 
     if resize:
-        image.thumbnail(resolution)
+        if keep_aspect:
+            image.thumbnail(resolution, Image.Resampling.LANCZOS)
+        else:
+            image = image.resize(resolution, Image.Resampling.LANCZOS)
     if drawtimestamp:
         image = ImageIO.timestamp_image(
             image,
@@ -329,6 +333,7 @@ class ImageIO:
         quality: int = 50,
         optimize: bool = False,
         resolution: tuple[int, int] = (1920, 1080),
+        keep_aspect: bool = True,
         drawtimestamp: bool = False,
         timestampformat: Optional[str] = None,
         timestampfontsize: int = 36,
@@ -376,6 +381,7 @@ class ImageIO:
             quality=quality,
             optimize=optimize,
             resolution=resolution,
+            keep_aspect=keep_aspect,
             drawtimestamp=drawtimestamp,
             timestampformat=timestampformat,
             timestampfont=timestampfont,
@@ -406,6 +412,7 @@ class ImageIO:
         quality: int = 50,
         optimize: bool = False,
         resolution: tuple[int, int] = (1920, 1080),
+        keep_aspect: bool = True,
         drawtimestamp: bool = False,
         timestampformat: Optional[str] = None,
         timestampfontsize: int = 36,
@@ -428,7 +435,10 @@ class ImageIO:
         im = Image.open(input_path)
 
         if resize:
-            im.thumbnail(resolution)
+            if keep_aspect:
+                im.thumbnail(resolution, Image.Resampling.LANCZOS)
+            else:
+                im = im.resize(resolution, Image.Resampling.LANCZOS)
         if drawtimestamp:
             display_ts = timestamp
             tz_shifted = False
@@ -508,6 +518,10 @@ class ImageIO:
     def fetch_image_from_url(url: str, timeout: int = 10) -> Image.Image:
         """Download an image from *url* and return a PIL Image.
 
+        Supports both direct JPEG/PNG endpoints and MJPEG streams
+        (``multipart/x-mixed-replace``).  For MJPEG streams, only the
+        first complete frame is read.
+
         Parameters
         ----------
         timeout : int
@@ -515,11 +529,96 @@ class ImageIO:
         """
         try:
             request = Request(url)
-            imgdata = urlopen(request, timeout=timeout).read()
+            response = urlopen(request, timeout=timeout)
+            content_type = response.headers.get("Content-Type", "")
+
+            if "multipart/x-mixed-replace" in content_type:
+                imgdata = ImageIO._read_mjpeg_frame(response, content_type)
+            else:
+                imgdata = response.read()
         except (HTTPError, URLError) as exc:
             logger.error("Failed to fetch image from %s: %s", url, exc)
             raise
         return Image.open(BytesIO(imgdata))
+
+    @staticmethod
+    def _read_mjpeg_frame(response: Any, content_type: str) -> bytes:
+        """Extract the first JPEG frame from an MJPEG stream.
+
+        MJPEG streams use ``multipart/x-mixed-replace; boundary=<marker>``
+        where each part has its own Content-Type and body.
+        """
+        # Parse boundary from Content-Type header
+        boundary = b""
+        for part in content_type.split(";"):
+            part = part.strip()
+            if part.lower().startswith("boundary="):
+                boundary = part.split("=", 1)[1].strip().encode()
+                break
+
+        if not boundary:
+            # No boundary found — fall back to scanning for JPEG markers
+            return ImageIO._read_mjpeg_frame_by_markers(response)
+
+        # Read chunks until we find a complete JPEG frame
+        buf = b""
+        chunk_size = 4096
+        found_start = False
+
+        while True:
+            chunk = response.read(chunk_size)
+            if not chunk:
+                break
+            buf += chunk
+
+            if not found_start:
+                # Look for the first boundary + JPEG start (FFD8)
+                jpeg_start = buf.find(b"\xff\xd8")
+                if jpeg_start >= 0:
+                    buf = buf[jpeg_start:]
+                    found_start = True
+
+            if found_start:
+                # Look for JPEG end marker (FFD9)
+                jpeg_end = buf.find(b"\xff\xd9")
+                if jpeg_end >= 0:
+                    response.close()
+                    return buf[: jpeg_end + 2]
+
+        response.close()
+        if buf:
+            return buf
+        raise ValueError("No JPEG frame found in MJPEG stream")
+
+    @staticmethod
+    def _read_mjpeg_frame_by_markers(response: Any) -> bytes:
+        """Fallback: read an MJPEG stream by scanning for JPEG SOI/EOI markers."""
+        buf = b""
+        chunk_size = 4096
+        found_start = False
+
+        while True:
+            chunk = response.read(chunk_size)
+            if not chunk:
+                break
+            buf += chunk
+
+            if not found_start:
+                soi = buf.find(b"\xff\xd8")
+                if soi >= 0:
+                    buf = buf[soi:]
+                    found_start = True
+
+            if found_start:
+                eoi = buf.find(b"\xff\xd9")
+                if eoi >= 0:
+                    response.close()
+                    return buf[: eoi + 2]
+
+        response.close()
+        if buf:
+            return buf
+        raise ValueError("No JPEG frame found in stream")
 
     @staticmethod
     def timestamp_image(

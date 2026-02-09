@@ -1,7 +1,10 @@
 """FastAPI application with lifespan management."""
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -12,16 +15,41 @@ from fastapi.templating import Jinja2Templates
 from pyLapse.web.scheduler import capture_scheduler
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+logger = logging.getLogger(__name__)
+
+# Shutdown signal for long-lived connections (SSE streams)
+shutdown_event = asyncio.Event()
+
+
+def _suppress_connection_reset(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+    """Suppress ConnectionResetError noise on Windows ProactorEventLoop.
+
+    When a browser navigates away from a page with streaming connections
+    (video, SSE), the dropped connection triggers a harmless exception in
+    the ProactorEventLoop transport layer.  We silently discard it.
+    """
+    exc = context.get("exception")
+    if isinstance(exc, (ConnectionResetError, ConnectionAbortedError)):
+        return
+    loop.default_exception_handler(context)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start the capture scheduler on startup; stop on shutdown."""
+    shutdown_event.clear()
+
+    # Suppress noisy Windows ProactorEventLoop errors
+    if sys.platform == "win32":
+        loop = asyncio.get_running_loop()
+        loop.set_exception_handler(_suppress_connection_reset)
+
     config_path = os.environ.get("PYLAPSE_CAPTURE_CONFIG")
     capture_scheduler.load_config(config_path)
     capture_scheduler.setup_jobs()
     capture_scheduler.start()
     yield
+    shutdown_event.set()
     capture_scheduler.stop()
 
 

@@ -35,7 +35,7 @@
       <datalist id="tz-list-{{cam_id}}">
         {% if all_timezones is defined %}
         {% for tz in all_timezones %}
-        <option value="{{ tz }}">
+        <option value="{{ tz.value }}">{{ tz.label }}</option>
         {% endfor %}
         {% endif %}
       </datalist>

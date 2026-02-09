@@ -35,13 +35,56 @@ def is_image_url(url: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def clear_target(directory: str | Path, mask: str = "*.jpg") -> None:
-    """Delete all files matching *mask* inside *directory*."""
+def clear_target(
+    directory: str | Path, mask: str = "*.jpg", retries: int = 5, delay: float = 1.0
+) -> None:
+    """Delete all files matching *mask* inside *directory*.
+
+    On Windows, files held open by another process raise ``PermissionError``.
+    This function retries up to *retries* times with *delay* seconds between
+    attempts, collecting stubborn files each pass until all are removed.
+    """
+    import time
+
     dir_str = str(directory)
+
+    # Collect files to delete
+    targets: list[str] = []
     with os.scandir(dir_str) as it:
         for entry in it:
             if entry.is_file(follow_symlinks=False) and fnmatch.fnmatch(entry.name, mask):
-                os.remove(entry.path)
+                targets.append(entry.path)
+
+    if not targets:
+        return
+
+    remaining = list(targets)
+    for attempt in range(1 + retries):
+        still_locked: list[str] = []
+        for fpath in remaining:
+            try:
+                os.remove(fpath)
+            except PermissionError:
+                still_locked.append(fpath)
+            except FileNotFoundError:
+                pass  # already gone
+        if not still_locked:
+            if attempt > 0:
+                logger.info("Cleared %d files from %s (after %d retries)", len(targets), dir_str, attempt)
+            return
+        remaining = still_locked
+        if attempt < retries:
+            logger.warning(
+                "clear_target: %d file(s) locked in %s, retrying in %.1fs (%d/%d)",
+                len(remaining), dir_str, delay, attempt + 1, retries,
+            )
+            time.sleep(delay)
+
+    # Final failure — raise so the caller knows
+    raise PermissionError(
+        f"Could not delete {len(remaining)} file(s) in {dir_str} after {retries} retries. "
+        f"First locked file: {remaining[0]}"
+    )
 
 
 # ---------------------------------------------------------------------------

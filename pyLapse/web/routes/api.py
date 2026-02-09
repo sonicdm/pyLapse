@@ -13,7 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from pyLapse.web.scheduler import capture_scheduler
 from pyLapse.web.tasks import task_manager
-from pyLapse.web.app import templates
+from pyLapse.web.app import templates, shutdown_event
 
 router = APIRouter()
 
@@ -23,12 +23,19 @@ async def api_tasks() -> JSONResponse:
     return JSONResponse([t.to_dict() for t in task_manager.get_all_tasks()])
 
 
+@router.get("/tasks/active")
+async def api_tasks_active() -> JSONResponse:
+    """Return only running/pending tasks for the global task tray."""
+    active = [t.to_dict() for t in task_manager.get_all_tasks() if t.status in ("running", "pending")]
+    return JSONResponse(active)
+
+
 @router.get("/tasks/{task_id}/progress")
 async def api_task_progress(task_id: str) -> EventSourceResponse:
     """SSE stream: yields task progress every 500ms until done."""
 
     async def event_generator():
-        while True:
+        while not shutdown_event.is_set():
             task = task_manager.get_task(task_id)
             if task is None:
                 yield {"event": "error", "data": json.dumps({"error": "Task not found"})}
@@ -40,7 +47,12 @@ async def api_task_progress(task_id: str) -> EventSourceResponse:
             if task.status in ("completed", "failed"):
                 return
 
-            await asyncio.sleep(0.5)
+            # Wait up to 0.5s but break early if shutdown is signalled
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=0.5)
+                return  # shutdown signalled
+            except asyncio.TimeoutError:
+                pass  # normal — keep polling
 
     return EventSourceResponse(event_generator())
 
@@ -58,10 +70,10 @@ async def api_camera_thumbnail(cam_id: str) -> Response:
         loop = asyncio.get_event_loop()
 
         def _make_thumb() -> bytes:
-            img = Image.open(fpath)
-            img.thumbnail((480, 270))
-            buf = io.BytesIO()
-            img.save(buf, "JPEG", quality=60)
+            with Image.open(fpath) as img:
+                img.thumbnail((480, 270))
+                buf = io.BytesIO()
+                img.save(buf, "JPEG", quality=60)
             return buf.getvalue()
 
         data = await loop.run_in_executor(None, _make_thumb)

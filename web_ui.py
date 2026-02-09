@@ -21,7 +21,13 @@ def main() -> None:
         os.environ["PYLAPSE_CAPTURE_CONFIG"] = os.path.abspath(args.config)
 
     import uvicorn
-    uvicorn.run("pyLapse.web.app:app", host=args.host, port=args.port, reload=False)
+    uvicorn.run(
+        "pyLapse.web.app:app",
+        host=args.host,
+        port=args.port,
+        reload=False,
+        timeout_graceful_shutdown=5,
+    )
 
 
 if __name__ == "__main__":
