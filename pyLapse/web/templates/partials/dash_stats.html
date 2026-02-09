@@ -1,8 +1,20 @@
 <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
-  <a href="/config" class="card stat-link" style="text-align:center; padding:0.75rem;">
+  <div class="card stat-link" style="text-align:center; padding:0.75rem;">
     <p class="muted" style="margin:0; font-size:0.8rem;">Scheduler</p>
-    <span class="badge {{ 'badge-ok' if scheduler_running else 'badge-err' }}" style="font-size:1rem;">{{ "Running" if scheduler_running else "Stopped" }}</span>
-  </a>
+    {% if not scheduler_running %}
+    <span class="badge badge-err" style="font-size:1rem;">Stopped</span>
+    {% elif scheduler_paused %}
+    <span class="badge badge-warn" style="font-size:1rem;">Paused</span>
+    {% else %}
+    <span class="badge badge-ok" style="font-size:1rem;">Running</span>
+    {% endif %}
+    <div style="margin-top:0.4rem;">
+      <button class="btn-small"
+              hx-post="/scheduler/toggle"
+              hx-target="#dash-stats"
+              hx-swap="innerHTML">{{ "Resume" if scheduler_paused else "Pause" }}</button>
+    </div>
+  </div>
   <a href="/cameras" class="card stat-link" style="text-align:center; padding:0.75rem;">
     <p class="muted" style="margin:0; font-size:0.8rem;">Cameras</p>
     <span style="font-size:1.4rem; font-weight:700;">{{ camera_count }}</span>

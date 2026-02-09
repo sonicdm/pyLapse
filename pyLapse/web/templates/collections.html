@@ -80,6 +80,17 @@
         <label>Extension
           <input type="text" name="ext" id="save-ext" value="jpg" placeholder="jpg">
         </label>
+        <label>Timezone
+          <input type="text" name="timezone" id="save-timezone" list="tz-list-coll"
+                 value="" placeholder="Local (no shift) — type to search" autocomplete="off">
+          <datalist id="tz-list-coll">
+            {% if all_timezones is defined %}
+            {% for tz in all_timezones %}
+            <option value="{{ tz }}">
+            {% endfor %}
+            {% endif %}
+          </datalist>
+        </label>
       </div>
       <div class="btn-row">
         <button type="submit">Save</button>

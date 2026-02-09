@@ -132,7 +132,7 @@ def render_sequence_to_video(
             "-c:v", codec,
             "-pix_fmt", pixel_fmt,
         ]
-        if progress:
+        if progress or progress_callback:
             # -progress pipe:1 outputs machine-readable stats to stdout
             cmd += ["-progress", "pipe:1"]
         cmd.append(str(Path(output_path).resolve()))

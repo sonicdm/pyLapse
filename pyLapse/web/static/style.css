@@ -97,6 +97,7 @@ code { color: var(--ok); font-size: 0.85em; }
   background: var(--accent2);
 }
 .badge-ok { background: var(--ok); color: #111; }
+.badge-warn { background: #f0ad4e; color: #111; }
 .badge-err { background: var(--err); color: #fff; }
 
 /* Forms */

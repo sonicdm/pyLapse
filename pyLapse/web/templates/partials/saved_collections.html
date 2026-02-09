@@ -9,6 +9,7 @@
       <th>Name</th>
       <th>Path</th>
       <th>Date Source</th>
+      <th>Timezone</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -18,6 +19,7 @@
       <td><strong>{{ coll.get('name', coll_id) }}</strong></td>
       <td><code>{{ coll.get('path', '') }}</code></td>
       <td>{{ coll.get('date_source', 'filename') }}</td>
+      <td>{{ coll.get('timezone', '') or '—' }}</td>
       <td>
         <div class="btn-row">
           <button type="button" class="btn-small"
@@ -35,7 +37,8 @@
                   data-date-source="{{ coll.get('date_source','filename') }}"
                   data-coll-id="{{ coll_id }}"
                   data-name="{{ coll.get('name','') }}"
-                  data-ext="{{ coll.get('ext','jpg') }}">Edit</button>
+                  data-ext="{{ coll.get('ext','jpg') }}"
+                  data-timezone="{{ coll.get('timezone','') }}">Edit</button>
           <button type="button" class="btn-small btn-danger"
                   hx-post="/collections/delete"
                   hx-vals='{"coll_id": "{{ coll_id }}"}'

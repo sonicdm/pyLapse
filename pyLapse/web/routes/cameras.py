@@ -20,6 +20,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _get_all_timezones() -> list[str]:
+    """Return a sorted list of all IANA timezone names."""
+    try:
+        from zoneinfo import available_timezones
+    except ImportError:
+        try:
+            from backports.zoneinfo import available_timezones  # type: ignore[no-redef]
+        except ImportError:
+            return []
+    return sorted(available_timezones())
+
+
 def _load_config() -> dict:
     """Read the raw config from disk."""
     path = capture_scheduler.config_path
@@ -56,11 +68,18 @@ def _ensure_collection(cam_id: str, cam: dict) -> None:
     for coll_id, coll in collections_store.get_all().items():
         if coll.get("path") == output_dir:
             return  # Already exists
-    collections_store.save(cam_id, {
+    coll_data: dict = {
         "name": cam.get("name", cam_id),
         "path": output_dir,
         "date_source": "filename",
-    })
+    }
+    ext = cam.get("ext", "jpg")
+    if ext:
+        coll_data["ext"] = ext
+    tz = cam.get("timezone", "")
+    if tz:
+        coll_data["timezone"] = tz
+    collections_store.save(cam_id, coll_data)
 
 
 def _render_camera_grid(request: Request) -> HTMLResponse:
@@ -202,6 +221,7 @@ async def camera_add_form(request: Request) -> HTMLResponse:
         "cam_id": "",
         "cam": {"name": "", "url": "", "output_dir": "", "prefix": "", "enabled": True},
         "is_new": True,
+        "all_timezones": _get_all_timezones(),
     })
 
 
@@ -214,6 +234,7 @@ async def camera_edit(request: Request, cam_id: str) -> HTMLResponse:
         "cam_id": cam_id,
         "cam": cam,
         "is_new": False,
+        "all_timezones": _get_all_timezones(),
     })
 
 
@@ -253,6 +274,7 @@ def _parse_camera_fields(form) -> dict[str, Any]:
     """Extract common camera fields from form data."""
     cam: dict[str, Any] = {
         "name": form.get("name", ""),
+        "description": form.get("description", ""),
         "url": form.get("url", ""),
         "output_dir": form.get("output_dir", ""),
         "prefix": form.get("prefix", ""),
@@ -273,6 +295,10 @@ def _parse_camera_fields(form) -> dict[str, Any]:
         cam["resize"] = True
         cam["resize_width"] = int(form.get("resize_width") or 1920)
         cam["resize_height"] = int(form.get("resize_height") or 1080)
+    # Timezone — direct text input with datalist search
+    tz = (form.get("timezone") or "").strip()
+    if tz:
+        cam["timezone"] = tz
     return cam
 
 

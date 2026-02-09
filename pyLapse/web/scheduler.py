@@ -29,6 +29,7 @@ class CaptureScheduler:
         self.capture_history: list[dict[str, Any]] = []
         self._config_path: str | None = None
         self._max_history = 200
+        self._paused = False
         # Track the last captured file path per camera for thumbnail serving
         self.last_capture_path: dict[str, str] = {}
 
@@ -132,6 +133,8 @@ class CaptureScheduler:
                 w = int(cam_cfg.get("resize_width", 1920))
                 h = int(cam_cfg.get("resize_height", 1080))
                 save_kwargs["resolution"] = (w, h)
+            if cam_cfg.get("timezone"):
+                save_kwargs["timezone"] = cam_cfg["timezone"]
 
             for i, rule in enumerate(cam_cfg.get("schedules", [])):
                 # Skip disabled schedules
@@ -228,6 +231,26 @@ class CaptureScheduler:
     @property
     def running(self) -> bool:
         return self._scheduler.running
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    def pause(self) -> None:
+        """Pause all scheduled jobs (scheduler stays running)."""
+        if not self._paused:
+            for job in self._scheduler.get_jobs():
+                job.pause()
+            self._paused = True
+            logger.info("Scheduler paused")
+
+    def resume(self) -> None:
+        """Resume all paused jobs."""
+        if self._paused:
+            for job in self._scheduler.get_jobs():
+                job.resume()
+            self._paused = False
+            logger.info("Scheduler resumed")
 
     def get_jobs(self) -> list[dict[str, Any]]:
         """Return metadata for all scheduled jobs."""

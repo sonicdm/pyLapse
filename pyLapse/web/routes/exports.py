@@ -141,6 +141,9 @@ async def export_add_form(
         exp["input_dir"] = coll.get("path", "")
         exp["name"] = coll.get("name", "")
         exp["date_source"] = coll.get("date_source", "filename")
+        ext = coll.get("ext", "jpg")
+        exp["video_pattern"] = f"*.{ext}"
+    all_collections = collections_store.get_all()
     return templates.TemplateResponse("partials/export_edit.html", {
         "request": request,
         "coll_id": coll_id,
@@ -148,6 +151,7 @@ async def export_add_form(
         "exp": exp,
         "fonts": fonts,
         "is_new": True,
+        "collections": all_collections,
     })
 
 
@@ -169,10 +173,28 @@ async def export_edit(request: Request, coll_id: str, exp_id: str) -> HTMLRespon
 async def export_add(request: Request) -> HTMLResponse:
     form = await request.form()
     coll_id = str(form.get("coll_id", "")).strip()
-    if not coll_id or not collections_store.get(coll_id):
-        return HTMLResponse('<p class="error">Collection not found.</p>')
-
     data = _parse_export_form(form)
+
+    # Auto-create a collection from the input dir if none specified
+    if not coll_id or not collections_store.get(coll_id):
+        input_dir = data.get("input_dir", "")
+        if not input_dir:
+            return HTMLResponse('<p class="error">Input directory is required.</p>')
+        # Check if a collection already exists for this path
+        for existing_id, existing_coll in collections_store.get_all().items():
+            if existing_coll.get("path") == input_dir:
+                coll_id = existing_id
+                break
+        else:
+            name = data.get("name") or os.path.basename(input_dir)
+            ext = data.get("video_pattern", "*.jpg").lstrip("*.")
+            coll_id = collections_store.save(None, {
+                "name": name,
+                "path": input_dir,
+                "date_source": data.get("date_source", "filename"),
+                "ext": ext,
+            })
+
     collections_store.save_export(coll_id, None, data)
     return _render_export_grid(request)
 
@@ -236,6 +258,8 @@ def _run_export(
     video_codec: str = "libx264",
     video_output: str = "",
     export_name: str = "",
+    timestamp_source_tz: str = "",
+    timestamp_display_tz: str = "",
     progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Background export function invoked by the task manager."""
@@ -250,28 +274,39 @@ def _run_export(
 
     outindex = imageset.filter_index(matched)
     image_count = sum(len(v) for v in outindex.values())
-    if progress_callback:
-        progress_callback(0, image_count, f"Writing {image_count} images...")
-    prepare_output_dir(output_dir, ext="jpg")
 
-    io = ImageIO()
-    io.write_imageset(
-        outindex,
-        output_dir,
-        resize=resize,
-        quality=quality,
-        optimize=optimize,
-        resolution=(resolution_w, resolution_h),
-        drawtimestamp=drawtimestamp,
-        timestampformat=timestampformat or "%Y-%m-%d %I:%M:%S %p",
-        timestampfont=timestampfont or None,
-        timestampfontsize=timestampfontsize,
-        timestampcolor=timestampcolor,
-        timestamppos=timestamppos,
-        prefix=prefix,
-        zeropadding=zeropadding,
-        progress_callback=progress_callback,
-    )
+    # Derive output ext from video_pattern (e.g. "*.jpg" -> "jpg")
+    out_ext = video_pattern.lstrip("*.") if video_pattern else "jpg"
+
+    if image_count > 0:
+        if progress_callback:
+            progress_callback(0, image_count, f"Writing {image_count} images...")
+        prepare_output_dir(output_dir, ext=out_ext)
+
+        io = ImageIO()
+        io.write_imageset(
+            outindex,
+            output_dir,
+            resize=resize,
+            quality=quality,
+            optimize=optimize,
+            resolution=(resolution_w, resolution_h),
+            drawtimestamp=drawtimestamp,
+            timestampformat=timestampformat or "%Y-%m-%d %I:%M:%S %p",
+            timestampfont=timestampfont or None,
+            timestampfontsize=timestampfontsize,
+            timestampcolor=timestampcolor,
+            timestamppos=timestamppos,
+            prefix=prefix,
+            zeropadding=zeropadding,
+            ext=out_ext,
+            timestamp_source_tz=timestamp_source_tz,
+            timestamp_display_tz=timestamp_display_tz,
+            progress_callback=progress_callback,
+        )
+    else:
+        if progress_callback:
+            progress_callback(0, 0, "No images matched the time filter.")
 
     record = history_store.add_export({
         "name": export_name or os.path.basename(input_dir),
@@ -284,8 +319,8 @@ def _run_export(
     })
     result: dict[str, Any] = {"image_count": image_count, "output_dir": output_dir, "export_id": record}
 
-    # Chain video render if enabled
-    if create_video:
+    # Chain video render if enabled (only if images were written)
+    if create_video and image_count > 0:
         if progress_callback:
             progress_callback(0, 0, "Starting video render...")
         vid_output = video_output or (output_dir.rstrip("/\\") + ".mp4")
@@ -332,6 +367,11 @@ async def export_run(request: Request, coll_id: str, exp_id: str) -> HTMLRespons
     if not exp:
         return HTMLResponse(f'<p class="error">Export config not found.</p>')
 
+    # Source TZ = what timezone the image timestamps are in (set on the camera).
+    # Display TZ = what timezone to render on the overlay (if different from source).
+    coll = collections_store.get(coll_id)
+    timestamp_source_tz = coll.get("timezone", "") if coll else ""
+
     task_name = f"Export {exp.get('name', exp_id)}"
     if exp.get("create_video"):
         task_name += " + Video"
@@ -363,6 +403,8 @@ async def export_run(request: Request, coll_id: str, exp_id: str) -> HTMLRespons
         video_codec=exp.get("video_codec", "libx264"),
         video_output=exp.get("video_output", ""),
         export_name=exp.get("name", exp_id),
+        timestamp_source_tz=timestamp_source_tz,
+        timestamp_display_tz=exp.get("display_tz", ""),
     )
     return templates.TemplateResponse("partials/task_progress.html", {
         "request": request,

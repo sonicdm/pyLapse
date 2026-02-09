@@ -44,6 +44,12 @@ def _load_collection_stats(
     }
 
 
+def _get_all_timezones() -> list[str]:
+    """Return sorted list of all IANA timezone names."""
+    from zoneinfo import available_timezones
+    return sorted(available_timezones())
+
+
 @router.get("/", response_class=HTMLResponse)
 async def collections_page(request: Request) -> HTMLResponse:
     saved = collections_store.get_all()
@@ -52,6 +58,7 @@ async def collections_page(request: Request) -> HTMLResponse:
         "request": request,
         "saved_collections": saved,
         "fonts": fonts,
+        "all_timezones": _get_all_timezones(),
     })
 
 
@@ -86,15 +93,23 @@ async def collections_save(
     date_source: str = Form("filename"),
     export_dir: str = Form(""),
     ext: str = Form("jpg"),
+    timezone: str = Form(""),
 ) -> HTMLResponse:
     """Save or update a collection."""
-    data = {
+    # Preserve existing exports when updating collection metadata
+    existing = collections_store.get(coll_id) if coll_id else None
+    data: dict[str, Any] = {
         "name": name,
         "path": path,
         "date_source": date_source,
         "export_dir": export_dir,
         "ext": ext,
     }
+    tz = timezone.strip()
+    if tz:
+        data["timezone"] = tz
+    if existing and "exports" in existing:
+        data["exports"] = existing["exports"]
     coll_id = collections_store.save(coll_id or None, data)
     # Return updated saved collections list
     saved = collections_store.get_all()
@@ -223,6 +238,8 @@ def _run_collection_export(
     video_pattern: str = "*.jpg",
     video_codec: str = "libx264",
     video_output: str = "",
+    timestamp_source_tz: str = "",
+    timestamp_display_tz: str = "",
     progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Background export from a collection."""
@@ -237,28 +254,39 @@ def _run_collection_export(
 
     outindex = imageset.filter_index(matched)
     image_count = sum(len(v) for v in outindex.values())
-    if progress_callback:
-        progress_callback(0, image_count, f"Writing {image_count} images...")
-    prepare_output_dir(output_dir, ext="jpg")
 
-    io = ImageIO()
-    io.write_imageset(
-        outindex,
-        output_dir,
-        resize=resize,
-        quality=quality,
-        optimize=optimize,
-        resolution=(resolution_w, resolution_h),
-        drawtimestamp=drawtimestamp,
-        timestampformat=timestampformat or "%Y-%m-%d %I:%M:%S %p",
-        timestampfont=timestampfont or None,
-        timestampfontsize=timestampfontsize,
-        timestampcolor=timestampcolor,
-        timestamppos=timestamppos,
-        prefix=prefix,
-        zeropadding=zeropadding,
-        progress_callback=progress_callback,
-    )
+    # Derive output ext from video_pattern (e.g. "*.jpg" -> "jpg")
+    out_ext = video_pattern.lstrip("*.") if video_pattern else "jpg"
+
+    if image_count > 0:
+        if progress_callback:
+            progress_callback(0, image_count, f"Writing {image_count} images...")
+        prepare_output_dir(output_dir, ext=out_ext)
+
+        io = ImageIO()
+        io.write_imageset(
+            outindex,
+            output_dir,
+            resize=resize,
+            quality=quality,
+            optimize=optimize,
+            resolution=(resolution_w, resolution_h),
+            drawtimestamp=drawtimestamp,
+            timestampformat=timestampformat or "%Y-%m-%d %I:%M:%S %p",
+            timestampfont=timestampfont or None,
+            timestampfontsize=timestampfontsize,
+            timestampcolor=timestampcolor,
+            timestamppos=timestamppos,
+            prefix=prefix,
+            zeropadding=zeropadding,
+            ext=out_ext,
+            timestamp_source_tz=timestamp_source_tz,
+            timestamp_display_tz=timestamp_display_tz,
+            progress_callback=progress_callback,
+        )
+    else:
+        if progress_callback:
+            progress_callback(0, 0, "No images matched the time filter.")
 
     # Record to history
     record = history_store.add_export({
@@ -272,8 +300,8 @@ def _run_collection_export(
     })
     result: dict[str, Any] = {"image_count": image_count, "output_dir": output_dir, "export_id": record}
 
-    # Chain video render if enabled
-    if create_video:
+    # Chain video render if enabled (only if images were written)
+    if create_video and image_count > 0:
         if progress_callback:
             progress_callback(0, 0, "Starting video render...")
         vid_output = video_output or (output_dir.rstrip("/\\") + ".mp4")
@@ -348,6 +376,14 @@ async def collections_export(
     """Start an export from a collection as a background task."""
     name = coll_name or os.path.basename(input_dir)
     label = f"Export {name}" + (" + Video" if create_video else "")
+
+    # Look up source timezone from collection (what TZ the file timestamps are in)
+    timestamp_source_tz = ""
+    for _cid, coll in collections_store.get_all().items():
+        if coll.get("path") == input_dir:
+            timestamp_source_tz = coll.get("timezone", "")
+            break
+
     task = task_manager.create_task(
         label,
         _run_collection_export,
@@ -376,6 +412,7 @@ async def collections_export(
         video_pattern=video_pattern,
         video_codec=video_codec,
         video_output=video_output,
+        timestamp_source_tz=timestamp_source_tz,
     )
     return templates.TemplateResponse("partials/task_progress.html", {
         "request": request,

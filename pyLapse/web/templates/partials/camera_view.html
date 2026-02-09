@@ -16,6 +16,9 @@
               hx-on::after-request="openCameraModal()">Edit</button>
     </div>
   </div>
+  {% if cam.get('description') %}
+  <p class="muted" style="margin:0.25rem 0; font-size:0.85rem;">{{ cam.get('description') }}</p>
+  {% endif %}
   <p class="muted" style="margin:0.25rem 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ cam.get('url', '') }}"><code style="font-size:0.8em;">{{ cam.get('url', '') }}</code></p>
   {% if cam.get('output_dir') %}
   <p class="muted" style="margin:0;font-size:0.85rem;">Output: <code>{{ cam.get('output_dir') }}</code></p>

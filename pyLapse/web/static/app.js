@@ -449,11 +449,31 @@ function closeCameraModal() { closeModal('camera-modal'); }
 function openExportModal() { openModal('export-modal'); }
 function closeExportModal() { closeModal('export-modal'); }
 
+/* Export collection picker — pre-fill fields when a collection is selected */
+function expCollPick(sel) {
+  var opt = sel.options[sel.selectedIndex];
+  var collId = document.getElementById('exp-coll-id');
+  var name = document.getElementById('exp-edit-name');
+  var indir = document.getElementById('exp-edit-indir');
+  var dateSrc = document.getElementById('exp-date-source');
+  if (opt.value) {
+    collId.value = opt.value;
+    if (name && !name.value) name.value = opt.dataset.name || '';
+    if (indir) indir.value = opt.dataset.path || '';
+    if (dateSrc) dateSrc.value = opt.dataset.dateSource || 'filename';
+    // Update video pattern to match collection ext
+    var pat = document.querySelector('[name="video_pattern"]');
+    if (pat) pat.value = '*.' + (opt.dataset.ext || 'jpg');
+  } else {
+    collId.value = '';
+  }
+}
+
 
 /* ===================================================================
  * Collections — save modal
  * =================================================================== */
-function openSaveModal(path, dateSource, collId, name, exportDir, ext) {
+function openSaveModal(path, dateSource, collId, name, exportDir, ext, timezone) {
   var collPath = document.getElementById('coll-path');
   var collDateSrc = document.getElementById('coll-date-source');
   var collName = document.getElementById('coll-name');
@@ -462,6 +482,7 @@ function openSaveModal(path, dateSource, collId, name, exportDir, ext) {
   document.getElementById('save-coll-id').value = collId || '';
   document.getElementById('save-name').value = name || (collName ? collName.value : '') || '';
   document.getElementById('save-ext').value = ext || 'jpg';
+  document.getElementById('save-timezone').value = timezone || '';
   document.getElementById('save-modal-title').textContent = collId ? 'Edit Collection' : 'Save Collection';
   document.getElementById('save-modal').style.display = 'flex';
 }
@@ -486,7 +507,7 @@ document.addEventListener('click', function(e) {
   }
   btn = e.target.closest('.edit-coll-btn');
   if (btn) {
-    openSaveModal(btn.dataset.path, btn.dataset.dateSource, btn.dataset.collId, btn.dataset.name, btn.dataset.exportDir, btn.dataset.ext);
+    openSaveModal(btn.dataset.path, btn.dataset.dateSource, btn.dataset.collId, btn.dataset.name, btn.dataset.exportDir, btn.dataset.ext, btn.dataset.timezone);
     return;
   }
   btn = e.target.closest('.create-video-btn');

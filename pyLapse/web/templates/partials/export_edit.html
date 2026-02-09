@@ -3,11 +3,26 @@
       hx-target="#export-grid"
       hx-swap="innerHTML"
       hx-on::after-request="closeExportModal()">
-  <input type="hidden" name="coll_id" value="{{ coll_id }}">
-  <input type="hidden" name="date_source" value="{{ exp.get('date_source', 'filename') }}">
+  <input type="hidden" name="coll_id" id="exp-coll-id" value="{{ coll_id }}">
+  <input type="hidden" name="date_source" id="exp-date-source" value="{{ exp.get('date_source', 'filename') }}">
+  {% if is_new and collections is defined and collections %}
+  <label>Collection <span class="muted" style="font-size:0.75rem;">(optional)</span>
+    <select id="exp-coll-picker" onchange="expCollPick(this)">
+      <option value="">— None (standalone) —</option>
+      {% for cid, c in collections.items() %}
+      <option value="{{ cid }}"
+              data-path="{{ c.get('path', '') }}"
+              data-name="{{ c.get('name', cid) }}"
+              data-ext="{{ c.get('ext', 'jpg') }}"
+              data-date-source="{{ c.get('date_source', 'filename') }}"
+              {% if coll_id == cid %}selected{% endif %}>{{ c.get('name', cid) }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
   <div class="form-grid">
     <label>Name
-      <input type="text" name="name" value="{{ exp.get('name', '') }}" placeholder="Export name" required>
+      <input type="text" name="name" id="exp-edit-name" value="{{ exp.get('name', '') }}" placeholder="Export name" required>
     </label>
     <label class="full-width">Input Directory
       <div class="input-with-browse">

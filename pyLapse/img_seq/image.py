@@ -128,6 +128,35 @@ def download_image(
     )
 
 
+def _get_tz_abbreviation(tz_name: str, dt: datetime | None = None) -> str:
+    """Return a short timezone abbreviation like ``JST`` or ``PST``.
+
+    Falls back to the IANA name (e.g. ``Asia-Tokyo``) if zoneinfo is
+    unavailable.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        try:
+            from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
+        except ImportError:
+            return tz_name.replace("/", "-")
+    try:
+        tz = ZoneInfo(tz_name)
+        ref = (dt or datetime.now()).replace(tzinfo=tz)
+        return ref.strftime("%Z") or tz_name.replace("/", "-")
+    except Exception:
+        return tz_name.replace("/", "-")
+
+
+def _format_tz_offset(dt_aware: datetime) -> str:
+    """Return a file-safe UTC offset like ``+09.00`` or ``-05.30``."""
+    offset = dt_aware.strftime("%z")  # e.g. "+0900", "-0530"
+    if len(offset) >= 5:
+        return offset[:3] + "." + offset[3:]
+    return offset
+
+
 def save_image(
     image: Image.Image,
     outputdir: str,
@@ -146,12 +175,33 @@ def save_image(
     timestampfont: Optional[str] = None,
     prefix: str = "",
     zeropadding: int = 5,
+    timezone: str = "",
 ) -> str:
-    """Process and save a PIL *image* to *outputdir* with the given options."""
+    """Process and save a PIL *image* to *outputdir* with the given options.
+
+    If *timezone* is a valid IANA timezone name (e.g. ``"Asia/Tokyo"``),
+    the timestamp is shifted to that timezone for both the filename and any
+    drawn overlay.  The default filename uses ISO 8601 with the UTC offset
+    (e.g. ``prefix-2026-02-09T07-30-00+09.00.jpg``).  Custom formats can
+    still use ``{tz}`` for the abbreviation (JST, PST, etc.).
+    """
+    # Shift timestamp to target timezone if configured (capture is always local→target)
+    tz_abbr = ""
+    tz_offset = ""
+    display_ts = timestamp
+    if timezone:
+        display_ts = ImageIO._shift_timezone(timestamp, timezone, source_tz="")
+        tz_abbr = _get_tz_abbreviation(timezone, timestamp)
+        tz_offset = _format_tz_offset(display_ts)
+
     if not timestampformat:
-        timestampformat = "%Y-%m-%d %I:%M:%S %p"
+        timestampformat = "%Y-%m-%d %I:%M:%S %p %Z" if timezone else "%Y-%m-%d %I:%M:%S %p"
+
     if not filenameformat:
-        filenameformat = "{prefix}{timestamp:%Y-%m-%d_%H-%M-%S}.{ext}"
+        if tz_offset:
+            filenameformat = "{prefix}{timestamp:%Y-%m-%dT%H-%M-%S}{tz_offset}.{ext}"
+        else:
+            filenameformat = "{prefix}{timestamp:%Y-%m-%dT%H-%M-%S}.{ext}"
 
     imgformat = FORMATS.get(ext, "JPEG")
 
@@ -160,7 +210,7 @@ def save_image(
     if drawtimestamp:
         image = ImageIO.timestamp_image(
             image,
-            timestamp,
+            display_ts,
             timestampformat=timestampformat,
             color=timestampcolor,
             size=timestampfontsize,
@@ -169,7 +219,10 @@ def save_image(
 
     outputfile = os.path.join(
         outputdir,
-        filenameformat.format(prefix=prefix, timestamp=timestamp, ext=ext),
+        filenameformat.format(
+            prefix=prefix, timestamp=display_ts, ext=ext,
+            tz=tz_abbr, tz_offset=tz_offset,
+        ),
     )
     os.makedirs(outputdir, exist_ok=True)
     image.save(outputfile, imgformat, quality=quality, optimize=optimize)
@@ -284,12 +337,24 @@ class ImageIO:
         timestampfont: Optional[str] = None,
         prefix: str = "",
         zeropadding: int = 5,
+        ext: str = "jpg",
+        timestamp_source_tz: str = "",
+        timestamp_display_tz: str = "",
         progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> None:
         """Write all images from *imageset* to *outputdir* with processing options.
 
         If *progress_callback* is provided it is called as
         ``progress_callback(completed, total, "")`` after each image is written.
+
+        Timezone parameters control timestamp conversion for drawn overlays:
+
+        *timestamp_source_tz*
+            The IANA timezone the image timestamps are currently in (e.g.
+            ``"Asia/Tokyo"``).  Empty means local system time.
+        *timestamp_display_tz*
+            The IANA timezone to convert timestamps to for display.  Empty or
+            equal to *timestamp_source_tz* means no conversion.
         """
         os.makedirs(outputdir, exist_ok=True)
 
@@ -319,6 +384,9 @@ class ImageIO:
             timestamppos=timestamppos,
             prefix=prefix,
             zeropadding=zeropadding,
+            ext=ext,
+            timestamp_source_tz=timestamp_source_tz,
+            timestamp_display_tz=timestamp_display_tz,
         )
 
         executor = ParallelExecutor(workers=self.workers, debug=self.debug)
@@ -346,27 +414,95 @@ class ImageIO:
         timestampfont: Optional[str] = None,
         prefix: Optional[str] = None,
         zeropadding: int = 5,
+        ext: str = "jpg",
+        timestamp_source_tz: str = "",
+        timestamp_display_tz: str = "",
     ) -> str:
-        """Process and save a single image (called by the thread pool)."""
+        """Process and save a single image (called by the thread pool).
+
+        If *timestamp_display_tz* is set and differs from
+        *timestamp_source_tz*, the timestamp is converted from source to
+        display timezone before drawing the overlay.
+        """
         input_path, timestamp = image_input
         im = Image.open(input_path)
 
         if resize:
             im.thumbnail(resolution)
         if drawtimestamp:
+            display_ts = timestamp
+            tz_shifted = False
+            if timestamp_display_tz and timestamp_display_tz != timestamp_source_tz:
+                display_ts = ImageIO._shift_timezone(
+                    timestamp, timestamp_display_tz, source_tz=timestamp_source_tz,
+                )
+                tz_shifted = True
+            # Default format includes %Z when timezone conversion is active
+            ts_fmt = timestampformat
+            if not ts_fmt:
+                ts_fmt = "%Y-%m-%d %I:%M:%S %p %Z" if tz_shifted else "%Y-%m-%d %I:%M:%S %p"
             im = ImageIO.timestamp_image(
                 im,
-                timestamp,
-                timestampformat=timestampformat,
+                display_ts,
+                timestampformat=ts_fmt,
                 color=timestampcolor,
                 size=timestampfontsize,
                 font=timestampfont,
             )
 
+        # Map extension to PIL format
+        fmt_map = {"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG", "webp": "WEBP"}
+        pil_format = fmt_map.get(ext.lower(), "JPEG")
+        save_kwargs: dict[str, Any] = {}
+        if pil_format == "JPEG":
+            save_kwargs = {"quality": quality, "optimize": optimize}
+        elif pil_format == "PNG":
+            save_kwargs = {"optimize": optimize}
+        elif pil_format == "WEBP":
+            save_kwargs = {"quality": quality}
+
         seq_label = str(idx + 1).zfill(zeropadding)
-        outputfile = os.path.join(outputdir, f"{prefix} {seq_label}.jpg")
-        im.save(outputfile, "JPEG", quality=quality, optimize=optimize)
+        outputfile = os.path.join(outputdir, f"{prefix} {seq_label}.{ext}")
+        im.save(outputfile, pil_format, **save_kwargs)
         return f"saved {outputfile}"
+
+    @staticmethod
+    def _shift_timezone(
+        dt: datetime,
+        target_tz: str,
+        source_tz: str = "",
+    ) -> datetime:
+        """Convert a naive datetime from *source_tz* to *target_tz*.
+
+        Both parameters are IANA timezone names (e.g. ``"Asia/Tokyo"``).
+        If *source_tz* is empty, the system's local timezone is assumed.
+
+        Uses ``zoneinfo`` (stdlib 3.9+). Returns a **tz-aware** datetime
+        in the target timezone (so ``%Z`` in strftime renders the abbreviation).
+        Returns the original datetime unchanged if either timezone name is
+        invalid or ``zoneinfo`` is unavailable.
+        """
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            try:
+                from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
+            except ImportError:
+                logger.warning("zoneinfo not available, skipping timezone shift")
+                return dt
+        try:
+            from datetime import timezone as _tz
+            target = ZoneInfo(target_tz)
+            if source_tz:
+                source = ZoneInfo(source_tz)
+            else:
+                # Get the local timezone (works on Windows, unlike ZoneInfo("localtime"))
+                source = datetime.now(_tz.utc).astimezone().tzinfo
+            localized = dt.replace(tzinfo=source)
+            return localized.astimezone(target)
+        except (KeyError, Exception) as exc:
+            logger.warning("Timezone shift %r → %r failed: %s", source_tz or "local", target_tz, exc)
+            return dt
 
     @staticmethod
     def fetch_image_from_url(url: str, timeout: int = 10) -> Image.Image:
@@ -433,10 +569,8 @@ class ImageIO:
 # ImageSet - indexing and filtering a folder of timestamped images
 # ---------------------------------------------------------------------------
 
-_DEFAULT_FILENAME_RE = re.compile(
-    r".*?(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})-"
-    r"(?P<hour>\d{2})(?P<minute>\d{2})(?P<seconds>\d{0,2})"
-)
+_DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_TIME_RE = re.compile(r"(\d{2})\D?(\d{2})\D?(\d{2})?")
 
 
 class ImageSet:
@@ -508,26 +642,44 @@ class ImageSet:
     ) -> dict[str, dict[str, datetime]]:
         """Parse timestamps from filenames and group by day.
 
+        Finds ``YYYY-MM-DD`` in each filename, then parses time digits
+        from whatever follows.  Handles any separator style.
+
         Returns ``{day_str: {filepath: datetime}}``.
         """
         self.imagecount = 0
-        pattern = filematch or _DEFAULT_FILENAME_RE
         total = len(files)
 
         days: dict[str, dict[str, datetime]] = {}
         for i, f in enumerate(files):
             image_name = os.path.basename(f)
-            match = pattern.match(image_name)
-            if not match:
-                if progress_callback and (i + 1) % 500 == 0:
-                    progress_callback(i + 1, total, "Indexing filenames")
-                continue
 
-            dateargs = list(match.groups())
-            if not match.group("seconds"):
-                dateargs[5] = "00"
+            if filematch:
+                match = filematch.match(image_name)
+                if not match:
+                    if progress_callback and (i + 1) % 500 == 0:
+                        progress_callback(i + 1, total, "Indexing filenames")
+                    continue
+                dateargs = list(match.groups())
+                if not match.group("seconds"):
+                    dateargs[5] = "00"
+                timestamp = datetime(*[int(arg) for arg in dateargs])
+            else:
+                dm = _DATE_RE.search(image_name)
+                if not dm:
+                    if progress_callback and (i + 1) % 500 == 0:
+                        progress_callback(i + 1, total, "Indexing filenames")
+                    continue
+                year, month, day_val = int(dm.group(1)), int(dm.group(2)), int(dm.group(3))
+                rest = image_name[dm.end():]
+                tm = _TIME_RE.search(rest)
+                if tm:
+                    hour, minute = int(tm.group(1)), int(tm.group(2))
+                    second = int(tm.group(3)) if tm.group(3) else 0
+                else:
+                    hour = minute = second = 0
+                timestamp = datetime(year, month, day_val, hour, minute, second)
 
-            timestamp = datetime(*[int(arg) for arg in dateargs])
             day = timestamp.strftime("%Y-%m-%d")
 
             if day not in days:

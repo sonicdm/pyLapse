@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from pyLapse.web.app import templates
 from pyLapse.web.history_store import history_store
@@ -70,6 +70,7 @@ def _ctx_stats() -> dict:
     videos = history_store.get_videos()
     return {
         "scheduler_running": capture_scheduler.running,
+        "scheduler_paused": capture_scheduler.paused,
         "camera_count": len(capture_scheduler.cameras),
         "job_count": len(capture_scheduler.get_jobs()),
         "export_count": len(exports),
@@ -155,3 +156,15 @@ async def dashboard(request: Request) -> HTMLResponse:
     ctx = _build_dashboard_context()
     ctx["request"] = request
     return templates.TemplateResponse("dashboard.html", ctx)
+
+
+@router.post("/scheduler/toggle", response_class=HTMLResponse)
+async def scheduler_toggle(request: Request) -> HTMLResponse:
+    """Pause or resume the scheduler. Returns updated stats partial."""
+    if capture_scheduler.paused:
+        capture_scheduler.resume()
+    else:
+        capture_scheduler.pause()
+    ctx = _ctx_stats()
+    ctx["request"] = request
+    return templates.TemplateResponse("partials/dash_stats.html", ctx)

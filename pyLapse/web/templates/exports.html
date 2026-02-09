@@ -6,6 +6,8 @@
 <!-- Export configs -->
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
   <h2 style="margin:0;">Export Configs</h2>
+  <button hx-get="/exports/add-form" hx-target="#export-modal-body" hx-swap="innerHTML"
+          hx-on::after-request="openExportModal()" class="btn-secondary">+ Add Export</button>
 </div>
 
 <div id="export-grid" class="grid">

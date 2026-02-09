@@ -12,6 +12,9 @@
     <label>Name
       <input type="text" name="name" value="{{ cam.get('name', '') }}" placeholder="Camera name" required>
     </label>
+    <label class="full-width">Description
+      <input type="text" name="description" value="{{ cam.get('description', '') }}" placeholder="Optional description">
+    </label>
     <label class="full-width">URL
       <input type="text" name="url" value="{{ cam.get('url', '') }}" placeholder="http://192.168.1.100/photo.jpg" required>
     </label>
@@ -23,6 +26,19 @@
     </label>
     <label>Filename Prefix
       <input type="text" name="prefix" value="{{ cam.get('prefix', '') }}" placeholder="e.g. Camera1-">
+    </label>
+    <label>Timezone
+      <input type="text" name="timezone" list="tz-list-{{cam_id}}"
+             value="{{ cam.get('timezone', '') }}"
+             placeholder="Local (no shift) — type to search"
+             autocomplete="off">
+      <datalist id="tz-list-{{cam_id}}">
+        {% if all_timezones is defined %}
+        {% for tz in all_timezones %}
+        <option value="{{ tz }}">
+        {% endfor %}
+        {% endif %}
+      </datalist>
     </label>
     <label>
       <input type="checkbox" name="enabled" value="true" {% if cam.get('enabled', true) %}checked{% endif %}> Enabled
@@ -39,8 +55,8 @@
     <div class="form-grid" style="margin-top:0.5rem;">
       <label class="full-width">Filename Format
         <input type="text" name="filename_format" value="{{ cam.get('filename_format', '') }}"
-               placeholder="{prefix}{timestamp:%Y-%m-%d_%H-%M-%S}.{ext}">
-        <span class="muted" style="font-size:0.75rem;">Variables: {prefix}, {timestamp:FORMAT}, {ext} &mdash; leave blank for default</span>
+               placeholder="{prefix}{timestamp:%Y-%m-%dT%H-%M-%S}{tz_offset}.{ext}">
+        <span class="muted" style="font-size:0.75rem;">Variables: {prefix}, {timestamp:FORMAT}, {tz} (abbr), {tz_offset} (e.g. +09.00), {ext} &mdash; leave blank for default</span>
       </label>
       <label>File Extension
         <select name="ext">

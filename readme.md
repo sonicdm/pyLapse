@@ -1,12 +1,17 @@
 # pyLapse
 
+
 Automatically save images from IP cameras into collections for export and video rendering, with detailed scheduling and export options.
 
-## Installation
+---
 
-```bash
-pip install -r requirements.txt
-```
+I started this project back in 2016 to do a long-term timelapse of some plants I was growing. The original setup was three old cell phones running IP Webcam, pointed out windows at different angles, capturing a frame every few minutes. A Python script on my desktop would pull snapshots over the local network on a cron schedule, sort them by date, and stitch together daily timelapses. It was janky but it worked — I ran it from April through October and got some great footage of the whole growing season.
+
+The code sat mostly untouched for years after that. In 2026 I revisited it with the help of AI coding agents (Claude Code) to clean up the core library, add proper timezone support and flexible filename parsing, and build a full web dashboard with FastAPI and htmx. What started as a single script is now something I'd actually recommend to other people.
+
+---
+
+## Installation
 
 **For video rendering:** download [ffmpeg](https://ffmpeg.org/download.html) and place the executable in the project's `bin/` directory, or set `ffmpeg_path` in `capture_config.json`.
 
@@ -30,6 +35,7 @@ start_ui.bat
 Or run directly:
 
 ```bash
+pip install -r requirements.txt
 python web_ui.py [--host 0.0.0.0] [--port 8000] [--config capture_config.json]
 ```
 
@@ -41,27 +47,37 @@ The launcher scripts will create a virtual environment and install dependencies 
 - Auto-create collections from camera output directories
 - Cron and interval-based capture scheduling
 - Configurable filename formatting, image quality, and resize on capture
+- ISO 8601 filenames with UTC offset (e.g. `cam-2026-02-09T14-30-00+09.00.jpg`)
+- Per-camera timezone with searchable IANA timezone picker (598 timezones)
+- Timezone-shifted filenames and timestamp overlays (e.g. capture in Tokyo time from a US server)
+- Camera description field for notes
 - Granular auto-refreshing dashboard sections (no full-page flicker)
 
 ![Dashboard](screenshots/dashboard.png)
-
-
 
 ![Cameras](screenshots/cameras.png)
 
 **Collections & Exports:**
 - Browse image collections with per-day counts
+- Per-collection timezone setting for source timezone tracking
 - Cron-filtered exports with real-time progress (SSE)
 - Timestamp overlay with font picker (system, bundled Roboto, Google Fonts)
+- Timezone-aware timestamp rendering: converts between source and display timezones (e.g. Tokyo → LA)
+- Create exports standalone or attached to a collection
 - Image resize, quality, and optimization options
 - Paginated history lists (10, 25, 50, 100 items)
 
 ![Collections](screenshots/collections.png)
 
+![Exports](screenshots/exports.png)
+
 **Video rendering:**
 - Render image sequences to MP4 (H.264, H.265, MPEG-4)
+- Real-time render progress via SSE
 - In-browser video preview and playback
 - Chain video creation directly after export
+
+![Videos](screenshots/videos_preview.png)
 
 **Config:**
 - Visual config editor with folder browser
@@ -162,3 +178,45 @@ start_ui.ps1          PowerShell launcher
 ```bash
 pytest pyLapse/img_seq/tests.py -v
 ```
+
+## Roadmap
+
+Planned features and ideas for future development:
+
+**Image Post-Processing Pipeline**
+- Tilt-shift miniature effect (adjustable focal band, blur strength)
+- Color grading / LUT application
+- Auto white-balance correction across sequences
+- HDR tone mapping for high-contrast scenes
+- Vignette, contrast, saturation adjustments
+- Deflicker / exposure smoothing between frames
+- Watermark overlay (image or text, configurable position and opacity)
+
+**Video Enhancements**
+- Motion interpolation (frame blending / optical flow for smoother output)
+- Speed ramping (variable speed within a single timelapse)
+- Transition effects between days or scenes
+- Audio track attachment (ambient audio, music)
+- GIF export alongside MP4
+
+**Smart Filtering & Analysis**
+- Weather-based filtering (skip overcast/rainy frames via brightness analysis)
+- Duplicate/near-duplicate frame detection and removal
+- Best-frame-per-day selection (sharpness, exposure scoring)
+- Motion detection highlights (flag frames with significant change)
+- Star trail stacking mode for night sequences
+
+**UI & Workflow**
+- Multi-collection batch exports (queue multiple exports)
+- Export templates / presets (save and reuse export configurations)
+- Side-by-side comparison view (before/after processing)
+- Image thumbnail grid browser with day navigation
+- Mobile-friendly responsive layout
+- User authentication for remote access
+- Webhook / notification support (email, Discord, Slack on export complete)
+
+**Platform & Integration**
+- RTSP stream support (in addition to HTTP snapshot URLs)
+- Cloud storage backends (S3, Google Drive, network shares)
+- Docker container packaging
+- REST API for headless automation beyond the web UI
