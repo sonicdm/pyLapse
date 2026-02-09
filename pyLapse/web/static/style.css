@@ -46,6 +46,13 @@ nav a.brand {
   color: var(--accent);
   margin-right: auto;
 }
+nav a.nav-github {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+}
+nav a.nav-github:hover { opacity: 1; }
 
 /* Main */
 main {
