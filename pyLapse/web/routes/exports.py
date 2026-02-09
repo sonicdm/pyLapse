@@ -82,6 +82,8 @@ def _parse_export_form(form) -> dict[str, Any]:
         "video_pattern": form.get("video_pattern", "*.jpg"),
         "video_codec": form.get("video_codec", "libx264"),
         "video_output": form.get("video_output", ""),
+        "date_from": form.get("date_from", ""),
+        "date_to": form.get("date_to", ""),
     }
 
 
@@ -260,12 +262,30 @@ def _run_export(
     export_name: str = "",
     timestamp_source_tz: str = "",
     timestamp_display_tz: str = "",
+    date_from: str = "",
+    date_to: str = "",
     progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Background export function invoked by the task manager."""
     if progress_callback:
         progress_callback(0, 0, "Loading image set...")
     imageset = imageset_load(input_dir, date_source=date_source, progress_callback=progress_callback)
+
+    # Filter by date range (if specified)
+    if date_from or date_to:
+        filtered_index = {}
+        for day_str, files in imageset.imageindex.items():
+            if date_from and day_str < date_from:
+                continue
+            if date_to and day_str > date_to:
+                continue
+            filtered_index[day_str] = files
+        imageset.imageindex = filtered_index
+        if progress_callback:
+            day_count = len(filtered_index)
+            img_count = sum(len(v) for v in filtered_index.values())
+            range_label = f"{date_from or 'start'} to {date_to or 'end'}"
+            progress_callback(0, 0, f"Date range {range_label}: {day_count} days, {img_count} images")
 
     if progress_callback:
         progress_callback(0, 0, "Filtering images by schedule...")
@@ -405,6 +425,8 @@ async def export_run(request: Request, coll_id: str, exp_id: str) -> HTMLRespons
         export_name=exp.get("name", exp_id),
         timestamp_source_tz=timestamp_source_tz,
         timestamp_display_tz=exp.get("display_tz", ""),
+        date_from=exp.get("date_from", ""),
+        date_to=exp.get("date_to", ""),
     )
     return templates.TemplateResponse("partials/task_progress.html", {
         "request": request,

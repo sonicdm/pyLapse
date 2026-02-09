@@ -9,6 +9,7 @@ import glob
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Any
 
@@ -29,6 +30,8 @@ class CaptureScheduler:
         self.capture_history: list[dict[str, Any]] = []
         self._config_path: str | None = None
         self._max_history = 200
+        self._max_retries = 2
+        self._retry_delay = 5  # seconds between retries
         self._paused = False
         # Track the last captured file path per camera for thumbnail serving
         self.last_capture_path: dict[str, str] = {}
@@ -53,6 +56,9 @@ class CaptureScheduler:
 
         with open(path, "r", encoding="utf-8") as f:
             config: dict[str, Any] = json.load(f)
+
+        self._max_retries = int(config.get("max_retries", 2))
+        self._retry_delay = int(config.get("retry_delay", 5))
 
         self.cameras.clear()
         self._camera_config.clear()
@@ -184,7 +190,11 @@ class CaptureScheduler:
                     logger.error("Invalid schedule %r for camera %r: %s", job_id, cam_id, exc)
 
     def _capture_image(self, camera_id: str, output_dir: str, save_kwargs: dict[str, Any]) -> None:
-        """Capture a single image (called by the scheduler)."""
+        """Capture a single image (called by the scheduler).
+
+        Retries up to ``max_retries`` times on failure to handle transient
+        network timeouts from IP camera endpoints.
+        """
         camera = self.cameras.get(camera_id)
         if not camera:
             return
@@ -195,20 +205,39 @@ class CaptureScheduler:
             "time": datetime.now().isoformat(),
             "success": False,
             "error": None,
+            "retries": 0,
         }
 
-        try:
-            result = camera.save_image(output_dir, **save_kwargs)
-            entry["success"] = True
-            # Extract file path from "Saved /path/to/file" return value
-            if result and result.startswith("Saved "):
-                fpath = result[6:]
-                entry["file_path"] = fpath
-                self.last_capture_path[camera_id] = fpath
-            logger.info("Captured %s", camera.name)
-        except Exception as exc:
-            entry["error"] = str(exc)
-            logger.error("Capture failed for %s: %s", camera.name, exc)
+        last_exc: Exception | None = None
+        attempts = 1 + self._max_retries  # first try + retries
+
+        for attempt in range(attempts):
+            try:
+                result = camera.save_image(output_dir, **save_kwargs)
+                entry["success"] = True
+                entry["retries"] = attempt
+                # Extract file path from "Saved /path/to/file" return value
+                if result and result.startswith("Saved "):
+                    fpath = result[6:]
+                    entry["file_path"] = fpath
+                    self.last_capture_path[camera_id] = fpath
+                if attempt > 0:
+                    logger.info("Captured %s (after %d %s)", camera.name, attempt, "retry" if attempt == 1 else "retries")
+                else:
+                    logger.info("Captured %s", camera.name)
+                break
+            except Exception as exc:
+                last_exc = exc
+                if attempt < attempts - 1:
+                    logger.warning(
+                        "Capture attempt %d/%d failed for %s: %s — retrying in %ds",
+                        attempt + 1, attempts, camera.name, exc, self._retry_delay,
+                    )
+                    time.sleep(self._retry_delay)
+                else:
+                    entry["error"] = str(exc)
+                    entry["retries"] = attempt
+                    logger.error("Capture failed for %s after %d attempts: %s", camera.name, attempts, exc)
 
         self.capture_history.insert(0, entry)
         if len(self.capture_history) > self._max_history:

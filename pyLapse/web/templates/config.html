@@ -15,6 +15,14 @@
         </div>
         <span class="muted">Path to ffmpeg executable. Leave blank to auto-detect from project bin/ directory.</span>
       </label>
+      <label>Max Retries
+        <input type="number" name="max_retries" value="{{ max_retries }}" min="0" max="10">
+        <span class="muted">Number of retry attempts when a capture fails (0 to disable).</span>
+      </label>
+      <label>Retry Delay (seconds)
+        <input type="number" name="retry_delay" value="{{ retry_delay }}" min="1" max="60">
+        <span class="muted">Seconds to wait between retry attempts.</span>
+      </label>
     </div>
     <div class="btn-row" style="margin-top:0.75rem;">
       <button type="submit">Save</button>

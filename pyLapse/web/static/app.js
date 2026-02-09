@@ -93,7 +93,8 @@ function schedUpdate(el) {
   var fromRaw = row.querySelector('.sched-from').value;
   var toRaw = row.querySelector('.sched-to').value;
   var now = new Date();
-  var from = (fromRaw === 'now') ? now.getHours() : parseInt(fromRaw);
+  var isExportCtx = !row.querySelector('.sched-type');  // export forms have no sched-type field
+  var from = (fromRaw === 'now') ? (isExportCtx ? 0 : now.getHours()) : parseInt(fromRaw);
   var to = (toRaw === 'now') ? now.getHours() : parseInt(toRaw);
 
   var hour, minute, second = '0';
@@ -302,7 +303,12 @@ function initSchedRow(row) {
       amount = parseInt(minVal.match(/^\*\/(\d+)$/)[1]);
       unit = 'minutes';
     }
-    fromVal = String(from);
+    // In export context, hour='*' means "Start" (all hours from collection)
+    if (!typeEl && hourVal === '*' && !hourVal.match(/^\*\/\d+$/)) {
+      fromVal = 'now';
+    } else {
+      fromVal = String(from);
+    }
   }
 
   // Set inputs
@@ -517,6 +523,42 @@ document.addEventListener('click', function(e) {
     window.location.href = '/videos?input_dir=' + encodeURIComponent(inputDir) + '&name=' + encodeURIComponent(name);
   }
 });
+
+
+/* ===================================================================
+ * Exports — date range presets
+ * =================================================================== */
+function setDateRange(preset) {
+  var fromEl = document.getElementById('exp-date-from');
+  var toEl = document.getElementById('exp-date-to');
+  if (!fromEl || !toEl) return;
+
+  var today = new Date();
+  var fmt = function(d) {
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  };
+
+  if (preset === 'all') {
+    fromEl.value = '';
+    toEl.value = '';
+  } else if (preset === 'today') {
+    fromEl.value = fmt(today);
+    toEl.value = fmt(today);
+  } else if (preset === 'yesterday') {
+    var y = new Date(today); y.setDate(y.getDate() - 1);
+    fromEl.value = fmt(y);
+    toEl.value = fmt(y);
+  } else if (preset === 'month') {
+    fromEl.value = fmt(new Date(today.getFullYear(), today.getMonth(), 1));
+    toEl.value = fmt(today);
+  } else {
+    // Numeric = last N days
+    var n = parseInt(preset) || 7;
+    var start = new Date(today); start.setDate(start.getDate() - (n - 1));
+    fromEl.value = fmt(start);
+    toEl.value = fmt(today);
+  }
+}
 
 
 /* ===================================================================

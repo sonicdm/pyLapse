@@ -43,6 +43,8 @@ async def config_page(request: Request) -> HTMLResponse:
         "request": request,
         "config_path": capture_scheduler.config_path or "(not set)",
         "ffmpeg_path": data.get("ffmpeg_path", ""),
+        "max_retries": data.get("max_retries", 2),
+        "retry_delay": data.get("retry_delay", 5),
         "scheduler_running": capture_scheduler.running,
         "camera_count": len(capture_scheduler.cameras),
         "job_count": len(jobs),
@@ -55,6 +57,8 @@ async def config_save(request: Request) -> HTMLResponse:
     """Save app-level settings, preserving cameras."""
     form = await request.form()
     ffmpeg_path = form.get("ffmpeg_path", "").strip()
+    max_retries = form.get("max_retries", "2").strip()
+    retry_delay = form.get("retry_delay", "5").strip()
 
     # Load existing config to preserve cameras
     data = _load_config_data()
@@ -63,6 +67,9 @@ async def config_save(request: Request) -> HTMLResponse:
         data["ffmpeg_path"] = ffmpeg_path
     else:
         data.pop("ffmpeg_path", None)
+
+    data["max_retries"] = int(max_retries) if max_retries else 2
+    data["retry_delay"] = int(retry_delay) if retry_delay else 5
 
     try:
         _save_config_data(data)

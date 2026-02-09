@@ -19,7 +19,7 @@
     <tr>
       <td>{{ h.time_short }}</td>
       <td>{{ h.camera_name }}</td>
-      <td><span class="badge {{ 'badge-ok' if h.success else 'badge-err' }}">{{ "OK" if h.success else (h.error or "Failed")[:30] }}</span></td>
+      <td><span class="badge {{ 'badge-ok' if h.success else 'badge-err' }}">{{ "OK" if h.success else (h.error or "Failed")[:30] }}</span>{% if h.retries %} <span class="muted" style="font-size:0.75rem;" title="{{ h.retries }} {{ 'retry' if h.retries == 1 else 'retries' }}">&#x21bb;{{ h.retries }}</span>{% endif %}</td>
       <td>
         {% if h.success and h.file_path %}
         <button class="btn-small btn-secondary" onclick="openImageModal('/api/cameras/{{ h.camera_id }}/thumbnail?_t={{ loop.index }}', '{{ h.camera_name }} — {{ h.time_short }}')">View</button>

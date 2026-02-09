@@ -38,6 +38,25 @@
     </label>
   </div>
 
+  <!-- Date Range -->
+  <h4 style="margin:0.75rem 0 0.5rem; color:var(--muted);">Date Range</h4>
+  <div class="form-grid">
+    <label>From Date
+      <input type="date" name="date_from" id="exp-date-from" value="{{ exp.get('date_from', '') }}">
+    </label>
+    <label>To Date
+      <input type="date" name="date_to" id="exp-date-to" value="{{ exp.get('date_to', '') }}">
+    </label>
+    <div class="full-width" style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+      <button type="button" class="btn-small" onclick="setDateRange('all')">All</button>
+      <button type="button" class="btn-small" onclick="setDateRange('today')">Today</button>
+      <button type="button" class="btn-small" onclick="setDateRange('yesterday')">Yesterday</button>
+      <button type="button" class="btn-small" onclick="setDateRange('7')">Last 7 days</button>
+      <button type="button" class="btn-small" onclick="setDateRange('30')">Last 30 days</button>
+      <button type="button" class="btn-small" onclick="setDateRange('month')">This month</button>
+    </div>
+  </div>
+
   <!-- Time Filter (reusable schedule picker) -->
   <h4 style="margin:0.75rem 0 0.5rem; color:var(--muted);">Time Filter</h4>
   <div id="exp-schedule">
