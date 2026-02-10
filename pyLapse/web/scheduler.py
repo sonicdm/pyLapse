@@ -5,10 +5,10 @@ Camera instances and capture history.
 """
 from __future__ import annotations
 
-import glob
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime
 from typing import Any
@@ -78,25 +78,54 @@ class CaptureScheduler:
             except ValueError as exc:
                 logger.error("Camera %r URL validation failed: %s", cam_id, exc)
 
-        # Discover latest capture files for cameras with output dirs
+        logger.info("Configured %d camera(s) from %s", len(self.cameras), path)
+
+        # Discover latest capture files for cameras with output dirs (async)
         self._discover_latest_captures()
 
         return config
 
     def _discover_latest_captures(self) -> None:
-        """Find the most recent image in each camera's output dir for thumbnails."""
-        for cam_id, cfg in self._camera_config.items():
-            if cam_id in self.last_capture_path:
-                continue  # already tracked from a live capture
-            output_dir = cfg.get("output_dir", "")
-            if not output_dir or not os.path.isdir(output_dir):
-                continue
-            # Find the newest image file
-            images = glob.glob(os.path.join(output_dir, "*.jpg"))
-            images += glob.glob(os.path.join(output_dir, "*.png"))
-            if images:
-                newest = max(images, key=os.path.getmtime)
-                self.last_capture_path[cam_id] = newest
+        """Find the most recent image in each camera's output dir for thumbnails.
+
+        Runs in a background thread so it never blocks app startup.
+        """
+        def _scan() -> None:
+            image_exts = {".jpg", ".jpeg", ".png"}
+            for cam_id, cfg in self._camera_config.items():
+                if cam_id in self.last_capture_path:
+                    continue  # already tracked from a live capture
+                output_dir = cfg.get("output_dir", "")
+                if not output_dir or not os.path.isdir(output_dir):
+                    continue
+                newest_path: str | None = None
+                newest_mtime: float = 0.0
+                try:
+                    with os.scandir(output_dir) as it:
+                        for entry in it:
+                            if not entry.is_file(follow_symlinks=False):
+                                continue
+                            ext = os.path.splitext(entry.name)[1].lower()
+                            if ext not in image_exts:
+                                continue
+                            try:
+                                mt = entry.stat().st_mtime
+                            except OSError:
+                                continue
+                            if mt > newest_mtime:
+                                newest_mtime = mt
+                                newest_path = entry.path
+                except (PermissionError, OSError) as exc:
+                    logger.debug("Cannot scan %s for thumbnails: %s", output_dir, exc)
+                    continue
+                if newest_path:
+                    self.last_capture_path[cam_id] = newest_path
+            found = len(self.last_capture_path)
+            if found:
+                logger.info("Discovered thumbnails for %d camera(s)", found)
+
+        thread = threading.Thread(target=_scan, daemon=True, name="discover-captures")
+        thread.start()
 
     @property
     def config_path(self) -> str | None:
@@ -261,8 +290,26 @@ class CaptureScheduler:
 
     def stop(self) -> None:
         if self._scheduler.running:
+            # Remove all jobs first to prevent new executions
+            self._scheduler.remove_all_jobs()
             self._scheduler.shutdown(wait=False)
             logger.info("Scheduler stopped")
+
+            # Force-shutdown the executor thread pool — APScheduler's non-daemon
+            # worker threads will otherwise keep the process alive indefinitely.
+            for executor in self._scheduler._executors.values():
+                pool = getattr(executor, "_pool", None)
+                if pool is not None:
+                    pool.shutdown(wait=False, cancel_futures=True)
+
+            # Schedule a hard exit so in-flight HTTP requests can't hang forever
+            def _force_exit() -> None:
+                import time as _time
+                _time.sleep(3)
+                logger.info("Force-exiting (in-flight threads still alive)")
+                os._exit(0)
+
+            threading.Thread(target=_force_exit, daemon=True, name="force-exit").start()
 
     @property
     def running(self) -> bool:
@@ -292,7 +339,7 @@ class CaptureScheduler:
         """Return metadata for all scheduled jobs."""
         jobs: list[dict[str, Any]] = []
         for job in self._scheduler.get_jobs():
-            next_run = job.next_run_time
+            next_run = getattr(job, "next_run_time", None)
             # Resolve camera name from job args (cam_id, output_dir, prefix)
             camera_name = ""
             if job.args and len(job.args) >= 1:

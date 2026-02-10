@@ -10,7 +10,7 @@ build/
 .venv/
 venv/
 *.log
-
+.idea/
 # FFmpeg binaries
 bin/
 

@@ -57,11 +57,19 @@
     </div>
   </div>
 
-  <!-- Time Filter (reusable schedule picker) -->
+  <!-- Time Filter (multiple schedules) -->
   <h4 style="margin:0.75rem 0 0.5rem; color:var(--muted);">Time Filter</h4>
-  <div id="exp-schedule">
-    <div class="schedule-row" style="padding:0.5rem 0; border-bottom:1px solid var(--border);">
+  <div id="exp-schedules">
+    {% set schedules = exp.get('schedules', [{'hour': exp.get('hour', '*'), 'minute': exp.get('minute', '*'), 'second': exp.get('second', '0'), 'enabled': true}]) %}
+    {% for sched in schedules %}
+    <div class="schedule-row{% if sched.get('enabled', true) == false %} disabled{% endif %}" style="padding:0.5rem 0; border-bottom:1px solid var(--border);">
+      <input type="hidden" name="sched_enabled" class="sched-enabled" value="{{ 'true' if sched.get('enabled', true) else 'false' }}">
       <div style="display:flex; gap:0.4rem; align-items:flex-end; flex-wrap:wrap;">
+        <label class="toggle" style="flex:0 0 36px; margin-bottom:0.5rem;" title="Enable/disable this schedule">
+          <input type="checkbox" {% if sched.get('enabled', true) %}checked{% endif %}
+                 onchange="var row=this.closest('.schedule-row'); var h=row.querySelector('.sched-enabled'); h.value=this.checked?'true':'false'; row.classList.toggle('disabled',!this.checked);">
+          <span class="toggle-track"></span>
+        </label>
         <label style="flex:0 0 60px;">Every
           <input type="number" class="sched-amount" value="1" min="1" max="360" style="width:100%;" onchange="schedUpdate(this)" oninput="schedUpdate(this)">
         </label>
@@ -89,13 +97,16 @@
             {% endfor %}
           </select>
         </label>
+        <button type="button" class="btn-small btn-danger" onclick="this.closest('.schedule-row').remove()" style="margin-bottom:0.5rem;">&times;</button>
       </div>
-      <input type="hidden" class="sched-hour" name="hour" value="{{ exp.get('hour', '*') }}">
-      <input type="hidden" class="sched-minute" name="minute" value="{{ exp.get('minute', '*') }}">
-      <input type="hidden" class="sched-second" name="second" value="{{ exp.get('second', '0') }}">
+      <input type="hidden" class="sched-hour" name="sched_hour" value="{{ sched.get('hour', '*') }}">
+      <input type="hidden" class="sched-minute" name="sched_minute" value="{{ sched.get('minute', '*') }}">
+      <input type="hidden" class="sched-second" name="sched_second" value="{{ sched.get('second', '0') }}">
       <p class="muted sched-summary" style="margin:0.15rem 0 0; font-size:0.8rem;"></p>
     </div>
+    {% endfor %}
   </div>
+  <button type="button" class="btn-secondary btn-small" style="margin-top:0.5rem;" onclick="addExpSchedule()">+ Add Schedule</button>
 
   <!-- Timestamp Settings -->
   <details{% if exp.get('drawtimestamp') %} open{% endif %}>
@@ -184,9 +195,9 @@
   </div>
 </form>
 <script>
-// Initialize the schedule row from its hidden hour/minute values
+// Initialize existing schedule rows from their hidden hour/minute values
 (function() {
-  document.querySelectorAll('#exp-schedule .schedule-row').forEach(function(row) {
+  document.querySelectorAll('#exp-schedules .schedule-row').forEach(function(row) {
     initSchedRow(row);
   });
 })();

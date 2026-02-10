@@ -14,9 +14,12 @@
   </div>
   <p class="muted" style="margin:0.25rem 0;">Input: <code>{{ exp.get('input_dir', '') }}</code></p>
   <p class="muted" style="margin:0;font-size:0.85rem;">Output: <code>{{ exp.get('output_dir', '') }}</code></p>
-  {% set hour = exp.get('hour', '*') %}
-  {% set minute = exp.get('minute', '*') %}
+  {% set schedules = exp.get('schedules', [{'hour': exp.get('hour', '*'), 'minute': exp.get('minute', '*'), 'second': exp.get('second', '0'), 'enabled': true}]) %}
+  {% for sched in schedules %}
+  {% set hour = sched.get('hour', '*') %}
+  {% set minute = sched.get('minute', '*') %}
   <p class="muted" style="margin:0.15rem 0 0;font-size:0.85rem;">
+    {% if not sched.get('enabled', true) %}<s style="opacity:0.5">{% endif %}
     {% if minute == '*' and hour == '*' %}
       Every minute, all day
     {% elif minute.startswith('*/') and hour == '*' %}
@@ -30,11 +33,15 @@
     {% else %}
       Filter: {{ hour }}h / {{ minute }}m
     {% endif %}
-    {% if exp.get('resize') %} | Resize {{ exp.get('resolution_w', 1920) }}x{{ exp.get('resolution_h', 1080) }}{% endif %}
-    {% if exp.get('drawtimestamp') %} | Timestamp{% endif %}
-    {% if exp.get('optimize') %} | Optimized{% endif %}
-    {% if exp.get('create_video') %} | <strong>+ Video</strong> ({{ exp.get('video_fps', 24) }}fps, {{ exp.get('video_codec', 'libx264') }}){% endif %}
+    {% if not sched.get('enabled', true) %}</s>{% endif %}
+    {% if loop.first %}
+      {% if exp.get('resize') %} | Resize {{ exp.get('resolution_w', 1920) }}x{{ exp.get('resolution_h', 1080) }}{% endif %}
+      {% if exp.get('drawtimestamp') %} | Timestamp{% endif %}
+      {% if exp.get('optimize') %} | Optimized{% endif %}
+      {% if exp.get('create_video') %} | <strong>+ Video</strong> ({{ exp.get('video_fps', 24) }}fps, {{ exp.get('video_codec', 'libx264') }}){% endif %}
+    {% endif %}
   </p>
+  {% endfor %}
   <div class="btn-row" style="margin-top:0.5rem;">
     <button hx-post="/exports/{{ coll_id }}/{{ exp_id }}/run" hx-target="#export-result" hx-swap="innerHTML">Run{% if exp.get('create_video') %} + Video{% endif %}</button>
     {% if not exp.get('create_video') %}

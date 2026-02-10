@@ -387,12 +387,26 @@ function initScheduleRows(containerId) {
   });
 }
 
-/* Convenience aliases for cameras */
+/* Convenience aliases for cameras and exports */
 function addCamSchedule() { addScheduleRow('cam-schedules', true); }
+function addExpSchedule() { addScheduleRow('exp-schedules', true); }
 
 /* Backward compat */
 var camSchedUpdate = schedUpdate;
 var initCamSchedRow = initSchedRow;
+
+
+/* ===================================================================
+ * Task cancellation
+ * =================================================================== */
+function cancelTask(taskId) {
+  fetch('/api/tasks/' + taskId + '/cancel', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) console.warn('Cancel failed:', data.error);
+    })
+    .catch(function(err) { console.error('Cancel request failed:', err); });
+}
 
 
 /* ===================================================================
@@ -624,7 +638,8 @@ function applyCPreset(hour, minute, el) {
         el.className = 'tray-task';
         el.dataset.taskId = t.id;
         el.innerHTML =
-          '<div class="tray-name"><span class="tray-label"></span><span class="tray-pct"></span></div>' +
+          '<div class="tray-name"><span class="tray-label"></span><span class="tray-pct"></span>' +
+          '<button class="btn-small btn-danger tray-cancel" onclick="cancelTask(\'' + t.id + '\')" style="padding:0 0.3rem;font-size:0.7rem;margin-left:auto;">&times;</button></div>' +
           '<div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>' +
           '<p class="tray-msg"></p>' +
           '<p class="tray-stats"></p>';

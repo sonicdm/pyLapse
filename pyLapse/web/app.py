@@ -45,12 +45,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         loop.set_exception_handler(_suppress_connection_reset)
 
     config_path = os.environ.get("PYLAPSE_CAPTURE_CONFIG")
-    capture_scheduler.load_config(config_path)
+    logger.info("Loading config from %s", config_path or "(default location)")
+    config = capture_scheduler.load_config(config_path)
+    cam_count = len(capture_scheduler.cameras)
+    logger.info("Loaded %d camera(s)", cam_count)
+
     capture_scheduler.setup_jobs()
     capture_scheduler.start()
+    job_count = len(capture_scheduler.get_jobs())
+    logger.info("Scheduled %d capture job(s)", job_count)
+    logger.info("Scheduler started — ready to serve")
     yield
     shutdown_event.set()
     capture_scheduler.stop()
+    logger.info("Shutdown complete")
 
 
 app = FastAPI(title="pyLapse", lifespan=lifespan)

@@ -13,13 +13,17 @@ from typing import Any, Callable
 logger = logging.getLogger(__name__)
 
 
+class CancelledError(Exception):
+    """Raised inside a progress callback when the task has been cancelled."""
+
+
 @dataclass
 class Task:
     """A tracked background task."""
 
     id: str
     name: str
-    status: str = "pending"  # pending | running | completed | failed
+    status: str = "pending"  # pending | running | completed | failed | cancelled
     progress: float = 0.0
     current: int = 0
     total: int = 0
@@ -81,6 +85,8 @@ class TaskManager:
         start_ts = 0.0
 
         def _progress(completed: int, total: int, message: str) -> None:
+            if task.status == "cancelled":
+                raise CancelledError()
             task.current = completed
             task.total = total
             task.message = message
@@ -100,20 +106,41 @@ class TaskManager:
             start_ts = time.monotonic()
             try:
                 task.result = func(*args, progress_callback=_progress, **kwargs)
-                task.status = "completed"
-                task.progress = 100.0
+                if task.status != "cancelled":
+                    task.status = "completed"
+                    task.progress = 100.0
                 task.eta = 0.0
                 task.elapsed = time.monotonic() - start_ts
+            except CancelledError:
+                task.status = "cancelled"
+                task.message = "Cancelled"
+                task.elapsed = time.monotonic() - start_ts
+                logger.info("Task %s cancelled", task_id)
             except Exception as exc:
                 task.status = "failed"
                 task.error = traceback.format_exc()
                 logger.error("Task %s failed: %s", task_id, exc)
             finally:
-                task.finished_at = datetime.now().isoformat()
+                if not task.finished_at:
+                    task.finished_at = datetime.now().isoformat()
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
         return task
+
+    def cancel_task(self, task_id: str) -> bool:
+        """Request cancellation of a running task.
+
+        Sets status to ``"cancelled"``.  The running function must check
+        ``task.status`` (or the progress callback pattern) to actually stop.
+        Returns *True* if the task was running and is now cancelled.
+        """
+        task = self._tasks.get(task_id)
+        if not task or task.status not in ("pending", "running"):
+            return False
+        task.status = "cancelled"
+        task.finished_at = datetime.now().isoformat()
+        return True
 
     def get_task(self, task_id: str) -> Task | None:
         return self._tasks.get(task_id)

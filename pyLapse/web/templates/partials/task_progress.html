@@ -3,7 +3,10 @@
   <div class="progress-bar">
     <div class="progress-fill" id="pf-{{ task.id }}" style="width: {{ task.progress }}%"></div>
   </div>
-  <p class="progress-text" id="pt-{{ task.id }}">{{ task.status }} &mdash; {{ task.progress|round(1) }}%{% if task.message %} &mdash; {{ task.message }}{% endif %}</p>
+  <div style="display:flex; align-items:center; gap:0.5rem;">
+    <p class="progress-text" id="pt-{{ task.id }}" style="flex:1;margin:0;">{{ task.status }} &mdash; {{ task.progress|round(1) }}%{% if task.message %} &mdash; {{ task.message }}{% endif %}</p>
+    <button type="button" class="btn-small btn-danger" id="cancel-{{ task.id }}" onclick="cancelTask('{{ task.id }}')">Cancel</button>
+  </div>
   <p class="muted" id="ps-{{ task.id }}" style="font-size:0.85rem;margin-top:0.25rem;"></p>
 </div>
 <script>
@@ -51,9 +54,16 @@
       if (d.eta > 0) parts.push('~' + fmtDuration(d.eta) + ' remaining');
       stats.textContent = parts.join(' \u00b7 ');
     }
-    if (d.status === 'completed' || d.status === 'failed') {
+    if (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') {
       es.close();
-      if (stats && d.elapsed > 0) stats.textContent = 'Completed in ' + fmtDuration(d.elapsed);
+      var cancelBtn = document.getElementById('cancel-' + tid);
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (d.status === 'cancelled') {
+        if (text) { text.textContent = 'Cancelled'; text.className = 'muted'; }
+        if (stats && d.elapsed > 0) stats.textContent = 'Ran for ' + fmtDuration(d.elapsed);
+      } else if (stats && d.elapsed > 0) {
+        stats.textContent = 'Completed in ' + fmtDuration(d.elapsed);
+      }
       if (d.status === 'completed' && resultUrl) {
         fetch(resultUrl).then(function(r) { return r.text(); }).then(function(html) {
           var el = document.getElementById('task-' + tid);

@@ -30,6 +30,18 @@ async def api_tasks_active() -> JSONResponse:
     return JSONResponse(active)
 
 
+@router.post("/tasks/{task_id}/cancel")
+async def api_task_cancel(task_id: str) -> JSONResponse:
+    """Cancel a running task."""
+    ok = task_manager.cancel_task(task_id)
+    if ok:
+        return JSONResponse({"status": "cancelled", "task_id": task_id})
+    task = task_manager.get_task(task_id)
+    if not task:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+    return JSONResponse({"error": f"Cannot cancel task in state: {task.status}"}, status_code=400)
+
+
 @router.get("/tasks/{task_id}/progress")
 async def api_task_progress(task_id: str) -> EventSourceResponse:
     """SSE stream: yields task progress every 500ms until done."""
@@ -44,7 +56,7 @@ async def api_task_progress(task_id: str) -> EventSourceResponse:
             data = json.dumps(task.to_dict())
             yield {"event": "progress", "data": data}
 
-            if task.status in ("completed", "failed"):
+            if task.status in ("completed", "failed", "cancelled"):
                 return
 
             # Wait up to 0.5s but break early if shutdown is signalled

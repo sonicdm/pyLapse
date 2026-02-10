@@ -263,9 +263,7 @@ def _run_collection_export(
     input_dir: str,
     output_dir: str,
     date_source: str,
-    hour: str,
-    minute: str,
-    second: str,
+    schedules: list[dict],
     resize: bool,
     keep_aspect: bool,
     resolution_w: int,
@@ -297,10 +295,19 @@ def _run_collection_export(
 
     if progress_callback:
         progress_callback(0, 0, "Filtering images by schedule...")
-    trigger = CronTrigger(hour=hour or "*", minute=minute or "*", second=second or "0")
-    matched = cron_image_filter(imageset.imageindex, trigger, fuzzy=5)
+    all_matched: set = set()
+    for sched in schedules:
+        if not sched.get("enabled", True):
+            continue
+        trigger = CronTrigger(
+            hour=sched.get("hour", "*"),
+            minute=sched.get("minute", "*"),
+            second=sched.get("second", "0"),
+        )
+        matched = cron_image_filter(imageset.imageindex, trigger, fuzzy=5)
+        all_matched.update(matched)
 
-    outindex = imageset.filter_index(matched)
+    outindex = imageset.filter_index(list(all_matched))
     image_count = sum(len(v) for v in outindex.values())
 
     # Derive output ext from video_pattern (e.g. "*.jpg" -> "jpg")
@@ -343,8 +350,7 @@ def _run_collection_export(
         "input_dir": input_dir,
         "output_dir": output_dir,
         "date_source": date_source,
-        "hour": hour,
-        "minute": minute,
+        "schedules": len(schedules),
         "image_count": image_count,
     })
     result: dict[str, Any] = {"image_count": image_count, "output_dir": output_dir, "export_id": record}
@@ -440,9 +446,7 @@ async def collections_export(
         input_dir=input_dir,
         output_dir=output_dir,
         date_source=date_source,
-        hour=hour,
-        minute=minute,
-        second=second,
+        schedules=[{"hour": hour, "minute": minute, "second": second, "enabled": True}],
         resize=resize,
         keep_aspect=keep_aspect,
         resolution_w=resolution_w,

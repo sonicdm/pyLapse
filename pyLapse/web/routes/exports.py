@@ -50,6 +50,32 @@ def _render_export_grid(request: Request) -> HTMLResponse:
     return HTMLResponse("".join(html_parts))
 
 
+def _parse_export_schedules(form) -> list[dict]:
+    """Extract schedule list from form data arrays."""
+    hours = form.getlist("sched_hour")
+    minutes = form.getlist("sched_minute")
+    seconds = form.getlist("sched_second")
+    enabled_list = form.getlist("sched_enabled")
+    count = max(len(hours), 1)
+    schedules = []
+    for i in range(count):
+        schedules.append({
+            "enabled": (enabled_list[i] == "true") if i < len(enabled_list) else True,
+            "hour": hours[i] if i < len(hours) else "*",
+            "minute": minutes[i] if i < len(minutes) else "*",
+            "second": seconds[i] if i < len(seconds) else "0",
+        })
+    return schedules
+
+
+def _get_schedules_from_export(exp: dict) -> list[dict]:
+    """Get schedules list from export config, with backward compat for flat fields."""
+    return exp.get("schedules") or [
+        {"hour": exp.get("hour", "*"), "minute": exp.get("minute", "*"),
+         "second": exp.get("second", "0"), "enabled": True}
+    ]
+
+
 def _parse_export_form(form) -> dict[str, Any]:
     """Extract export config dict from form data."""
     return {
@@ -57,9 +83,7 @@ def _parse_export_form(form) -> dict[str, Any]:
         "input_dir": form.get("input_dir", ""),
         "output_dir": form.get("output_dir", ""),
         "date_source": form.get("date_source", "filename"),
-        "hour": form.get("hour", "*"),
-        "minute": form.get("minute", "*"),
-        "second": form.get("second", "0"),
+        "schedules": _parse_export_schedules(form),
         "resize": form.get("resize", "") == "true",
         "keep_aspect": form.get("keep_aspect", "") == "true",
         "resolution_w": int(form.get("resolution_w", 1920)),
@@ -239,9 +263,7 @@ def _run_export(
     input_dir: str,
     output_dir: str,
     date_source: str,
-    hour: str,
-    minute: str,
-    second: str,
+    schedules: list[dict],
     resize: bool,
     keep_aspect: bool,
     resolution_w: int,
@@ -291,10 +313,19 @@ def _run_export(
 
     if progress_callback:
         progress_callback(0, 0, "Filtering images by schedule...")
-    trigger = CronTrigger(hour=hour or "*", minute=minute or "*", second=second or "0")
-    matched = cron_image_filter(imageset.imageindex, trigger, fuzzy=5)
+    all_matched: set = set()
+    for sched in schedules:
+        if not sched.get("enabled", True):
+            continue
+        trigger = CronTrigger(
+            hour=sched.get("hour", "*"),
+            minute=sched.get("minute", "*"),
+            second=sched.get("second", "0"),
+        )
+        matched = cron_image_filter(imageset.imageindex, trigger, fuzzy=5)
+        all_matched.update(matched)
 
-    outindex = imageset.filter_index(matched)
+    outindex = imageset.filter_index(list(all_matched))
     image_count = sum(len(v) for v in outindex.values())
 
     # Derive output ext from video_pattern (e.g. "*.jpg" -> "jpg")
@@ -336,8 +367,7 @@ def _run_export(
         "input_dir": input_dir,
         "output_dir": output_dir,
         "date_source": date_source,
-        "hour": hour,
-        "minute": minute,
+        "schedules": len(schedules),
         "image_count": image_count,
     })
     result: dict[str, Any] = {"image_count": image_count, "output_dir": output_dir, "export_id": record}
@@ -404,9 +434,7 @@ async def export_run(request: Request, coll_id: str, exp_id: str) -> HTMLRespons
         input_dir=exp["input_dir"],
         output_dir=exp["output_dir"],
         date_source=exp.get("date_source", "filename"),
-        hour=exp.get("hour", "*"),
-        minute=exp.get("minute", "*"),
-        second=exp.get("second", "0"),
+        schedules=_get_schedules_from_export(exp),
         resize=exp.get("resize", False),
         keep_aspect=exp.get("keep_aspect", True),
         resolution_w=exp.get("resolution_w", 1920),

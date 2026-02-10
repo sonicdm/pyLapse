@@ -7,10 +7,16 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
     parser = argparse.ArgumentParser(description="pyLapse Web Dashboard")
     parser.add_argument("--host", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port (default 8000)")
