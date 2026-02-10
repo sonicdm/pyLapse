@@ -193,6 +193,33 @@ def get_fire_times(
     return times
 
 
+def _filter_single_day(
+    day: str,
+    files: dict[str, datetime.datetime],
+    cron_trigger: object,
+    fuzzy: int,
+) -> list[str]:
+    """Filter one day's images against a cron trigger.
+
+    Extracted from :func:`cron_image_filter` so days can be processed in
+    parallel via a thread pool.
+    """
+    dt_day = datetime.datetime.strptime(day, "%Y-%m-%d").replace(
+        tzinfo=get_localzone()
+    )
+    next_day = cron_trigger.get_next_fire_time(dt_day, dt_day)
+    if next_day.date() != dt_day.date():
+        return []
+
+    fire_times = get_fire_times(cron_trigger, dt_day)
+    day_set = dict(sorted(files.items(), key=lambda x: (x[1], x[0])))
+    reverse_day_set = {v: k for k, v in day_set.items()}
+    day_timestamps = list(day_set.values())
+
+    time_keys = [find_nearest_dt(ft, day_timestamps, fuzzy) for ft in fire_times]
+    return [reverse_day_set[key] for key in time_keys if key is not None]
+
+
 def cron_image_filter(
     imageindex: ImageIndex,
     cron_trigger: object,
@@ -202,25 +229,25 @@ def cron_image_filter(
 
     For each day in *imageindex*, determines the trigger's fire times and
     picks the closest matching image within *fuzzy* minutes.
+
+    Days are processed in parallel threads for large indexes.
     """
-    images: list[str] = []
+    days = sorted(imageindex.items())
 
-    for day, files in sorted(imageindex.items()):
-        dt_day = datetime.datetime.strptime(day, "%Y-%m-%d").replace(
-            tzinfo=get_localzone()
-        )
-        next_day = cron_trigger.get_next_fire_time(dt_day, dt_day)
-        if next_day.date() != dt_day.date():
-            continue
+    if len(days) <= 4:
+        images: list[str] = []
+        for day, files in days:
+            images.extend(_filter_single_day(day, files, cron_trigger, fuzzy))
+        return images
 
-        fire_times = get_fire_times(cron_trigger, dt_day)
-        day_set = dict(sorted(files.items(), key=lambda x: (x[1], x[0])))
-        reverse_day_set = {v: k for k, v in day_set.items()}
-        day_timestamps = list(day_set.values())
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        time_keys = [find_nearest_dt(ft, day_timestamps, fuzzy) for ft in fire_times]
-        for key in time_keys:
-            if key is not None:
-                images.append(reverse_day_set[key])
-
+    images = []
+    with ThreadPoolExecutor(max_workers=min(len(days), os.cpu_count() or 4)) as pool:
+        futures = [
+            pool.submit(_filter_single_day, day, files, cron_trigger, fuzzy)
+            for day, files in days
+        ]
+        for future in as_completed(futures):
+            images.extend(future.result())
     return images

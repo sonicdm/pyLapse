@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+import multiprocessing
 import os
 import re
 import sys
 import traceback
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    ProcessPoolExecutor,
+    as_completed,
+    wait,
+    FIRST_COMPLETED,
+)
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -115,6 +122,51 @@ class TracedProcessPoolExecutor(_StackTracedMixin, ProcessPoolExecutor):
 
 
 # ---------------------------------------------------------------------------
+# Shared state for process pool workers (progress counter + cancel flag)
+# ---------------------------------------------------------------------------
+
+_shared_progress: Any = None
+_shared_cancel: Any = None
+
+
+def _init_shared(counter: Any, cancel_flag: Any) -> None:
+    """Worker initializer — stores shared memory values as module globals."""
+    global _shared_progress, _shared_cancel
+    _shared_progress = counter
+    _shared_cancel = cancel_flag
+
+
+# ---------------------------------------------------------------------------
+# Batch helper for process pools
+# ---------------------------------------------------------------------------
+
+
+def _batch_run(
+    func: Callable[..., Any],
+    chunk: Sequence[Any],
+    start_idx: int,
+    *args: Any,
+    **kwargs: Any,
+) -> list[Any]:
+    """Process a batch of items sequentially within one worker process.
+
+    This is a module-level function so it can be pickled for
+    ``ProcessPoolExecutor``.  After each item the shared progress
+    counter is incremented and the cancel flag is checked.  When the
+    parent sets the cancel flag, workers stop processing immediately.
+    """
+    results = []
+    for i, item in enumerate(chunk):
+        if _shared_cancel is not None and _shared_cancel.value:
+            break
+        results.append(func(item, start_idx + i, *args, **kwargs))
+        if _shared_progress is not None:
+            with _shared_progress.get_lock():
+                _shared_progress.value += 1
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Parallel executor
 # ---------------------------------------------------------------------------
 
@@ -180,8 +232,12 @@ class ParallelExecutor:
 
         *func* is called as ``func(item, index, *args, **kwargs)``.
 
+        Items are batched into chunks to reduce IPC overhead.  A shared
+        counter provides per-image progress regardless of chunk size.
+
         If *progress_callback* is provided it is called as
-        ``progress_callback(completed, total, "")`` after each item finishes.
+        ``progress_callback(completed, total, "")`` approximately every
+        250 ms with the current image count.
         """
         return self._run(
             TracedProcessPoolExecutor,
@@ -208,32 +264,137 @@ class ParallelExecutor:
         total = len(items)
         results: list[Any] = []
         completed = 0
-        with executor_cls(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(func, item, idx, *args, **kwargs)
-                for idx, item in enumerate(items)
-            ]
+        futures: list[Any] = []
+
+        # Process pools: batch items into chunks to avoid 100K+ IPC round-trips.
+        # A shared multiprocessing.Value counter gives per-image progress
+        # without needing small chunks.
+        # Thread pools: one future per item (negligible overhead, finer progress).
+        batched = issubclass(executor_cls, ProcessPoolExecutor)
+
+        counter: Any = None
+        cancel_flag: Any = None
+        extra_kw: dict[str, Any] = {}
+        if batched:
+            counter = multiprocessing.Value("i", 0)
+            cancel_flag = multiprocessing.Value("b", 0)  # 0=run, 1=cancel
+            extra_kw["initializer"] = _init_shared
+            extra_kw["initargs"] = (counter, cancel_flag)
+
+        executor = executor_cls(max_workers=max_workers, **extra_kw)
+        try:
+            if batched:
+                chunk_size = max(1, -(-total // (max_workers * 4)))
+                for i in range(0, total, chunk_size):
+                    chunk = items[i:i + chunk_size]
+                    futures.append(
+                        executor.submit(_batch_run, func, chunk, i, *args, **kwargs)
+                    )
+            else:
+                futures = [
+                    executor.submit(func, item, idx, *args, **kwargs)
+                    for idx, item in enumerate(items)
+                ]
 
             if progress_callback:
-                for future in as_completed(futures, timeout=300):
-                    results.append(future.result())
-                    completed += 1
-                    progress_callback(completed, total, "")
+                if counter is not None:
+                    # Process pool — poll shared counter for per-image progress
+                    self._collect_with_counter(
+                        futures, results, counter, total, progress_callback, batched,
+                    )
+                else:
+                    # Thread pool — report after each future
+                    for future in as_completed(futures):
+                        results.append(future.result())
+                        completed += 1
+                        progress_callback(completed, total, "")
             elif self.debug:
-                for future in as_completed(futures, timeout=300):
-                    result = future.result()
-                    logger.debug(result)
-                    results.append(result)
+                for future in as_completed(futures):
+                    if batched:
+                        for r in future.result():
+                            logger.debug(r)
+                            results.append(r)
+                    else:
+                        result = future.result()
+                        logger.debug(result)
+                        results.append(result)
             else:
-                pbar = tqdm.tqdm(
-                    as_completed(futures),
-                    total=total,
-                    unit=f" {self.unit}",
-                    unit_scale=True,
-                    leave=True,
-                    ascii=True,
-                )
-                for future in pbar:
-                    results.append(future.result())
+                if counter is not None:
+                    # Process pool + tqdm — poll shared counter
+                    pbar = tqdm.tqdm(
+                        total=total,
+                        unit=f" {self.unit}",
+                        unit_scale=True,
+                        leave=True,
+                        ascii=True,
+                    )
+                    self._collect_with_counter(
+                        futures, results, counter, total,
+                        lambda c, t, m: pbar.update(c - pbar.n),
+                        batched,
+                    )
+                    pbar.close()
+                else:
+                    # Thread pool + tqdm
+                    pbar = tqdm.tqdm(
+                        total=total,
+                        unit=f" {self.unit}",
+                        unit_scale=True,
+                        leave=True,
+                        ascii=True,
+                    )
+                    for future in as_completed(futures):
+                        results.append(future.result())
+                        pbar.update(1)
+                    pbar.close()
+        except BaseException:
+            # Signal child processes to stop via shared memory — they check
+            # the flag after each image so they exit within one iteration.
+            if cancel_flag is not None:
+                cancel_flag.value = 1
+            # Cancel all pending futures and kill the pool immediately.
+            for f in futures:
+                f.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+        else:
+            executor.shutdown(wait=True)
 
         return results
+
+    @staticmethod
+    def _collect_with_counter(
+        futures: list[Any],
+        results: list[Any],
+        counter: Any,
+        total: int,
+        callback: Callable[[int, int, str], None],
+        batched: bool,
+    ) -> None:
+        """Collect results from *futures* while polling *counter* for progress.
+
+        Uses ``concurrent.futures.wait`` with a 250 ms timeout so the shared
+        counter is polled ~4 times per second regardless of how long each
+        chunk takes.  This decouples progress granularity from chunk size.
+        """
+        pending = set(futures)
+        last_reported = 0
+
+        while pending:
+            done, pending = wait(pending, timeout=0.25, return_when=FIRST_COMPLETED)
+
+            for f in done:
+                if batched:
+                    results.extend(f.result())
+                else:
+                    results.append(f.result())
+
+            current = counter.value
+            if current != last_reported:
+                callback(current, total, "")
+                last_reported = current
+
+        # Final update — counter may lag slightly behind chunk completion
+        current = counter.value
+        if current != last_reported:
+            callback(current, total, "")

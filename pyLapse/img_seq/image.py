@@ -396,7 +396,7 @@ class ImageIO:
         )
 
         executor = ParallelExecutor(workers=self.workers, debug=self.debug)
-        executor.run_threaded(
+        executor.run_multiprocess(
             self._write_single_image,
             output_files,
             progress_callback=progress_callback,

@@ -152,6 +152,10 @@
       </label>
       <label>Prefix <input type="text" name="prefix" value="{{ exp.get('prefix', '') }}"></label>
       <label>Zero Padding <input type="number" name="zeropadding" value="{{ exp.get('zeropadding', 5) }}" min="1" max="10"></label>
+      <label>Workers
+        <input type="number" name="workers" value="{{ exp.get('workers', 0) }}" min="0" max="256">
+        <span class="muted" style="font-size:0.75rem; display:block;">Parallel processes for image writing. 0 = auto (CPU count).</span>
+      </label>
     </div>
   </details>
 

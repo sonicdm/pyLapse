@@ -101,6 +101,7 @@ def _parse_export_form(form) -> dict[str, Any]:
         "ts_y": int(form.get("ts_y", 0)),
         "prefix": form.get("prefix", ""),
         "zeropadding": int(form.get("zeropadding", 5)),
+        "workers": int(form.get("workers", 0)),
         # Video creation settings
         "create_video": form.get("create_video", "") == "true",
         "video_fps": int(form.get("video_fps", 24)),
@@ -278,6 +279,7 @@ def _run_export(
     timestamppos: tuple[int, int],
     prefix: str,
     zeropadding: int,
+    workers: int = 0,
     create_video: bool = False,
     video_fps: int = 24,
     video_pattern: str = "*.jpg",
@@ -313,17 +315,33 @@ def _run_export(
 
     if progress_callback:
         progress_callback(0, 0, "Filtering images by schedule...")
+
+    enabled = [s for s in schedules if s.get("enabled", True)]
     all_matched: set = set()
-    for sched in schedules:
-        if not sched.get("enabled", True):
-            continue
-        trigger = CronTrigger(
-            hour=sched.get("hour", "*"),
-            minute=sched.get("minute", "*"),
-            second=sched.get("second", "0"),
-        )
-        matched = cron_image_filter(imageset.imageindex, trigger, fuzzy=5)
-        all_matched.update(matched)
+
+    if len(enabled) <= 1:
+        for sched in enabled:
+            trigger = CronTrigger(
+                hour=sched.get("hour", "*"),
+                minute=sched.get("minute", "*"),
+                second=sched.get("second", "0"),
+            )
+            all_matched.update(cron_image_filter(imageset.imageindex, trigger, fuzzy=5))
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _filter_schedule(sched: dict) -> list[str]:
+            trigger = CronTrigger(
+                hour=sched.get("hour", "*"),
+                minute=sched.get("minute", "*"),
+                second=sched.get("second", "0"),
+            )
+            return cron_image_filter(imageset.imageindex, trigger, fuzzy=5)
+
+        with ThreadPoolExecutor(max_workers=len(enabled)) as pool:
+            futures = [pool.submit(_filter_schedule, s) for s in enabled]
+            for future in as_completed(futures):
+                all_matched.update(future.result())
 
     outindex = imageset.filter_index(list(all_matched))
     image_count = sum(len(v) for v in outindex.values())
@@ -336,7 +354,7 @@ def _run_export(
             progress_callback(0, image_count, f"Writing {image_count} images...")
         prepare_output_dir(output_dir, ext=out_ext)
 
-        io = ImageIO()
+        io = ImageIO(workers=workers or None)
         io.write_imageset(
             outindex,
             output_dir,
@@ -449,6 +467,7 @@ async def export_run(request: Request, coll_id: str, exp_id: str) -> HTMLRespons
         timestamppos=(exp.get("ts_x", 0), exp.get("ts_y", 0)),
         prefix=exp.get("prefix", ""),
         zeropadding=exp.get("zeropadding", 5),
+        workers=exp.get("workers", 0),
         create_video=exp.get("create_video", False),
         video_fps=exp.get("video_fps", 24),
         video_pattern=exp.get("video_pattern", "*.jpg"),
